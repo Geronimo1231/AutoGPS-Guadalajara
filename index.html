@@ -1,0 +1,2389 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Sistema de Gestión de Vehículos</title>
+    <!-- Vue 3 -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Leaflet para mapas -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- Add Chart.js library so `Chart` is defined before your app-script -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style id="app-style">
+        [v-cloak] {
+            display: none;
+        }
+        .loader {
+            border-top-color: #3498db;
+            -webkit-animation: spinner 1.5s linear infinite;
+            animation: spinner 1.5s linear infinite;
+        }
+        @-webkit-keyframes spinner {
+            0% { -webkit-transform: rotate(0deg); }
+            100% { -webkit-transform: rotate(360deg); }
+        }
+        @keyframes spinner {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .map-container {
+            height: 700px;
+            width: 100%;
+        }
+        .vehicle-card {
+          @apply relative bg-gray-100 rounded-lg shadow-sm overflow-hidden cursor-pointer hover:shadow-lg transition-shadow;
+        }
+        .sidebar {
+            height: calc(100vh - 64px);
+        }
+        .fade-enter-active, .fade-leave-active {
+            transition: opacity 0.5s;
+        }
+        .fade-enter-from, .fade-leave-to {
+            opacity: 0;
+        }
+        .fade-enter-to, .fade-leave-from {
+            opacity: 1;
+        }
+        .slide-fade-enter-active, .slide-fade-leave-active {
+            transition: all 0.3s ease;
+        }
+        .slide-fade-enter-from, .slide-fade-leave-to {
+            transform: translateX(20px);
+            opacity: 0;
+        }
+        /* Add styles for the assignment badge on vehicle cards */
+        .assign-badge {
+            position: absolute;
+            top: 2px;
+            right: 2px;
+            padding: 2px 4px;
+            font-size: 0.75rem;
+            font-weight: bold;
+            border-radius: 4px;
+        }
+        .assign-badge-green {
+            background-color: #10B981;
+            color: white;
+        }
+        .assign-badge-red {
+            background-color: #EF4444;
+            color: white;
+        }
+        .assign-badge-yellow {
+            background-color: #FFC107;
+            color: white;
+        }
+        .assign-badge-blue {
+            background-color: #93C5FD;
+            color: white;
+        }
+        .assign-badge-purple {
+            background-color: #9400D3;
+            color: white;
+        }
+        .assign-badge-orange {
+            background-color: #FF7F50;
+            color: white;
+        }
+        .assign-badge-gray {
+            background-color: #808080;
+            color: white;
+        }
+        .assign-badge-black {
+            background-color: #000000;
+            color: white;
+        }
+        .assign-badge-white {
+            background-color: #FFFFFF;
+            color: black;
+        }
+        /* Add or update Tailwind utility classes for modern, flat styling on cards, badges, and buttons. */
+        /* Ensure transform & opacity transitions are enabled (fade & slide-fade classes already present). */
+        /* Add gradient overlay for card images: .bg-gradient-to-t from-black via-transparent to-transparent opacity-60 */
+        /* Add status indicator styling: .bg-green-100 text-green-800 px-3 py-1 rounded-full text-xs font-medium */
+        /* Add spinner animation for refresh button: .animate-spin */
+        /* Style scrollable, hoverable history: .overflow-y-auto .space-y-3 .bg-gray-50 .p-4 .rounded-lg .bg-white .rounded-lg .shadow-sm .hover:bg-gray-100 .transition */
+        /* New formal modal styling */
+        .formal-modal {
+          @apply bg-white rounded-2xl shadow-xl max-w-md mx-auto p-6 space-y-4;
+          font-family: serif;
+        }
+        .formal-modal-header h3 {
+          @apply text-3xl font-bold text-gray-100 mb-2;
+        }
+        .formal-label {
+          @apply text-sm font-semibold text-gray-100 uppercase tracking-wide;
+        }
+        /* More formal table styling for assignments/users */
+        .formal-table th {
+          @apply bg-gray-100 text-gray-600 px-4 py-2 border-b;
+        }
+        .formal-table td {
+          @apply px-4 py-2 border-b text-gray-800;
+        }
+        /* 1) Make vehicle details modal backdrop less transparent */
+        .fixed.inset-0.bg-black.bg-opacity-75 { /* increased opacity for clarity */ }
+
+        /* CSS changes for left-sliding side panel and enlarged content */
+
+        /* 1. Panel container: from centered modal to left-sliding panel */
+        /* Removed previous modal centering styles, added side panel styles */
+        .side-panel {
+          @apply fixed inset-y-0 left-0 z-50 flex;
+          width: 20rem;
+          min-width: 20rem;
+          max-width: 24rem;
+          height: 100vh;
+          background-color: #fff; /* Override as needed with Tailwind classes */
+          border-radius: 0.5rem; /* rounded-lg */
+          box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+          overflow-y: auto;
+        }
+        /* Overlay mask for side panel */
+        .side-panel-backdrop {
+          @apply fixed inset-0 bg-black bg-opacity-50;
+        }
+        /* Panel size responsiveness for medium screens */
+        @media (min-width: 768px) {
+          .side-panel {
+            width: 24rem; /* md:w-96 equivalent */
+          }
+        }
+        /* Enlarge vehicle image and details */
+        #vehicleDetailMap {
+          width: 100%;
+          height: 20rem;
+        }
+        /* Controls layout inside the panel */
+        .panel-close-btn {
+          @apply absolute top-4 right-4 text-gray-500 hover:text-gray-700 cursor-pointer;
+        }
+        .panel-actions {
+          @apply flex space-x-3 mt-4;
+        }
+        /* Refresh button overlay on map */
+        .map-refresh-btn {
+          @apply absolute top-2 right-2 rounded-full bg-indigo-600 hover:bg-indigo-700 p-2 text-white;
+        }
+        /* Transition for slide */
+        .slide-fade-enter-active, .slide-fade-leave-active {
+          transition: transform 0.3s ease, opacity 0.3s ease;
+        }
+        .slide-fade-enter {
+          transform: translateX(-100%);
+          opacity: 0;
+        }
+        .slide-fade-leave-to {
+          transform: translateX(-100%);
+          opacity: 0;
+        }
+        /* Style for file input */
+        .file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-100 file:text-indigo-700 hover:file:bg-indigo-200
+        /* Style for URL input */
+        .mt-1 block w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-indigo-500 focus:border-indigo-500
+        /* Style for the edit controls container */
+        .mt-4 space-y-4 bg-gray-50 p-4 rounded-lg shadow-inner
+        /* Style for 'Guardar Imagen' button */
+        .mt-2 inline-flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded shadow
+        /* Style for error messages */
+        .text-red-600 text-xs mt-1
+
+        /* 1) Global map taller */
+        .map-container {
+            height: 700px;
+            width: 100%;
+        }
+
+        /* 2) Vehicle detail map bigger */
+        #vehicleDetailMap {
+          width: 100%;
+          height: 20rem;
+        }
+
+        /* 1) DARK SERIF PALETTE FOR LOGIN */
+        .login-background {
+          position: fixed;
+          inset: 0;
+          z-index: 0;
+          overflow: hidden;
+          background: #111 !important;        /* dark fallback color */
+        }
+        .login-background iframe,
+        .login-background video {
+          position: absolute;
+          top: 50%; left: 50%;
+          width: auto; height: 100%;
+          min-width: 100%; min-height: 100%;
+          transform: translate(-50%,-50%);
+          object-fit: cover;
+          z-index: 0;
+        }
+        .login-container {
+          position: relative;
+          z-index: 10;
+          font-family: serif;
+          color: #EEE;
+          background-color: rgba(0,0,0,0.85) !important; /* slightly darker overlay */
+        }
+        .login-container h1, .login-container p {
+          color: #F5F5F5 !important;          /* lighter default text */
+        }
+        .login-container input,
+        .login-container select,
+        .login-container button {
+          background-color: #374151; /* gray-700 */
+          color: #f3f4f6;             /* gray-100 */
+        }
+
+        /* 2) INPUT & BUTTON STYLES */
+        .login-container input,
+        .login-container select,
+        .login-container button {
+          background-color: #374151; /* gray-700 */
+          color: #f3f4f6;             /* gray-100 */
+        }
+
+        /* Button accent */
+        .btn-indigo {
+          @apply bg-indigo-800 text-gray-100 hover:bg-indigo-700 transition;
+        }
+
+        /* Modal backdrop darker */
+        .fixed.inset-0.bg-black.bg-opacity-50 {
+          background-color: rgba(0,0,0,0.75) !important;
+        }
+
+        /* Override all .bg-white to a darker gray background */
+        .bg-white {
+          background-color: #374151 !important;  /* Tailwind gray-700 */
+        }
+
+        /* Reinforce dark palette for text colors */
+        .text-gray-800 { color: #E5E7EB !important; } /* light text */
+        .text-gray-600 { color: #D1D5DB !important; }
+
+        /* Optionally, ensure the .animate-pulse class is present (if not using Tailwind or similar) */
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.5; }
+        }
+        .animate-pulse {
+          animation: pulse 0.5s;
+        }
+
+        /* ------------------------------------------------------------------
+           OVERRIDE ALL GRAY TEXT CLASSES TO WHITE FOR DARK BACKGROUND
+        ------------------------------------------------------------------ */
+        .text-gray-50,
+        .text-gray-100,
+        .text-gray-200,
+        .text-gray-300,
+        .text-gray-400,
+        .text-gray-500,
+        .text-gray-600,
+        .text-gray-700,
+        .text-gray-800,
+        .text-gray-900 {
+          color: #fff !important;
+        }
+
+        /* If any inline or hard-coded grey hex/rgb colors remain, you can override here */
+        [style*="color: #555"],
+        [style*="color:#555"],
+        [style*="color: rgb(102,102,102)"] {
+          color: #fff !important;
+        }
+
+        /* CSS changes for Vehicle Details Modal image edit section */
+
+        /* Smooth hover on preview */
+        .image-preview-lg {
+          transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+        }
+        .image-preview-lg:hover {
+          transform: scale(1.05);
+          box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+        }
+
+        /* Add dark-mode styling for the new 'Guardar Imagen' button */
+        .btn-indigo-dark {
+          @apply bg-indigo-800 text-gray-100 hover:bg-indigo-700 transition;
+        }
+
+        /* Add .btn-agardar for prominent save button styling */
+        .btn-agardar {
+          @apply bg-green-500 text-white font-medium rounded-md border-0;
+          transition: background-color 0.2s ease;
+        }
+        .btn-agardar:hover {
+          background-color: #16a34a; /* slightly darker green on hover */
+        }
+
+        /* Tooltip class for subtle hinting on hover */
+        .tooltip[title]:hover::after {
+          content: attr(title);
+          @apply absolute bg-black text-white text-xs rounded py-1 px-2 opacity-90;
+          bottom: 100%; left: 50%; transform: translateX(-50%) translateY(-4px);
+          white-space: nowrap;
+        }
+
+        /* 20px gutter between assignment cards */
+        .assignments-grid {
+          display: grid;
+          /* honeycomb-style: uniform panels with min width, auto-fill */
+          grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        }
+
+        /* Optional slight offset every other row for honeycomb effect: */
+        .assignments-grid > .draggable-card:nth-child(odd) {
+          transform: translateY(12px);
+        }
+
+        /* Dragging visual effect */
+        .draggable-card {
+          transition: transform 0.2s ease, box-shadow: 0.2s ease;
+          cursor: grab;
+        }
+        .draggable--dragging {
+          transform: scale(1.03);
+          box-shadow: 0 8px 20px rgba(0,0,0,0.2);
+          cursor: grabbing;
+        }
+
+        /* new: scrollable vehicles list container */
+        .vehicles-list-container {
+          max-height: calc(100vh - 200px);
+          overflow-y: auto;
+          padding: 1rem;
+        }
+
+        /* Inner modal panel: changed to semi-transparent dark gray, white text, and smooth transitions */
+        .bg-gray-800.bg-opacity-90.text-white.rounded-lg.shadow-xl.transition-colors.duration-300 {
+          /* background: rgba(31, 41, 55, 0.9); */
+          /* color: #fff; */
+          /* border-radius, shadow, and transition for color changes */
+        }
+
+        /* Input and select fields: dark background, white text, smooth transitions */
+        input.bg-gray-700.border-gray-600.text-white.placeholder-gray-400,
+        select.bg-gray-700.border-gray-600.text-white.placeholder-gray-400 {
+          /* background: #374151; */
+          /* border: 1px solid #4b5563; */
+          /* color: #fff; */
+          /* placeholder color: #9ca3af; */
+          /* transition: background-color 0.2s, border-color 0.2s; */
+        }
+        input:focus.bg-gray-600.border-indigo-500,
+        select:focus.bg-gray-600.border-indigo-500 {
+          /* background: #4b5563; */
+          /* border-color: #6366f1; */
+        }
+
+        /* Button styles: dark backgrounds, white text, hover effects, transitions */
+        button.bg-gray-700.hover\:bg-gray-600.text-white.rounded-md.transition-colors.duration-200 {
+          /* background: #374151; */
+          /* color: #fff; */
+          /* border-radius: ...; */
+          /* transition: background-color 0.2s; */
+        }
+        button.bg-indigo-700.hover\:bg-indigo-600.text-white.rounded-md.shadow.transition-colors.duration-200 {
+          /* background: #4338ca; */
+          /* color: #fff; */
+          /* box-shadow: ...; */
+          /* transition: background-color 0.2s; */
+        }
+
+        button.text-gray-300.hover\:text-white.transition-colors.duration-200 {
+          /* color: #d1d5db; */
+          /* on hover: color: #fff; */
+          /* transition: color 0.2s; */
+        }
+
+        /* Additional: Activity Log - Dark background and details */
+        .activity-log {
+          background-color: #1F2937; /* Tailwind gray-800 */
+          color: #F9FAFB; /* Tailwind gray-50 for text */
+          padding: 1rem;
+          border-radius: 0.5rem;
+          font-family: monospace;
+        }
+        .activity-log h2 {
+          @apply text-xl font-semibold mb-2 text-gray-100;
+        }
+        .activity-log-entry {
+          @apply divide-y divide-gray-700 py-2;
+        }
+        .activity-log-entry span {
+          display: block;
+          color: #D1D5DB; /* Tailwind gray-300 for timestamps */
+        }
+
+        /* Add Vehicle Modal: Simplified, dark, minimal */
+        /* Modal overlay: bg-black bg-opacity-60 */
+        /* Modal panel: bg-gray-900, no extra shadow, rounded-lg */
+        /* Inputs: bg-gray-800, border-gray-600, text-white, placeholder-gray-500, focus:border-indigo-500 */
+        /* Validation: text-red-500 for error messages */
+        /* Buttons: primary button bg-indigo-600 text-white rounded-md hover:bg-indigo-500, disabled:opacity-50 */
+        /* Cancel button: text-gray-300 hover:text-white */
+        .vehicle-modal-backdrop {
+          @apply fixed inset-0 bg-black bg-opacity-60 z-40;
+        }
+        .vehicle-modal-panel {
+          @apply fixed inset-0 flex items-center justify-center z-50;
+        }
+        .vehicle-modal {
+          @apply bg-gray-900 rounded-lg max-w-lg w-full p-6;
+        }
+        .vehicle-modal h3 {
+          @apply text-2xl mb-4 text-gray-100;
+        }
+        .vehicle-modal input,
+        .vehicle-modal select {
+          @apply bg-gray-800 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500;
+        }
+        .validation-error {
+          @apply text-red-500 text-xs mt-1;
+        }
+        .modal-buttons {
+          @apply flex justify-end space-x-3 mt-4;
+        }
+        .btn-primary {
+          @apply bg-indigo-600 hover:bg-indigo-500 text-white rounded-md px-4 py-2;
+        }
+        .btn-cancel {
+          @apply text-gray-300 hover:text-white px-4 py-2 rounded-md;
+        }
+
+        /* 1) Activity Log Panel: Ensure full height, scrollable, and dark theme */
+        .mt-8.flex.flex-col.h-[60vh].bg-gray-800.rounded-lg.overflow-hidden {
+          /* Already using Tailwind utility classes for height, background, and overflow */
+        }
+        .flex-1.overflow-y-auto.p-4.space-y-4 {
+          /* Ensures the log entries area is scrollable and fills available space */
+        }
+
+        /* 2) Nuevo Vehículo Form: Dark styling and validation feedback */
+        .mt-8.bg-gray-900.p-6.rounded-lg.shadow-inner {
+          /* Uses Tailwind for dark background, padding, rounded corners, and inner shadow */
+        }
+        input.bg-gray-800.border.border-gray-600.rounded.text-white,
+        select.bg-gray-800.border.border-gray-600.rounded.text-white {
+          /* Ensures all form fields are dark and styled consistently */
+        }
+        .text-red-500.text-xs.mt-1 {
+          /* Error message styling for validation feedback */
+        }
+        .image-preview-lg img {
+          /* Ensures image preview is contained and styled */
+          object-fit: cover;
+          width: 100%;
+          height: 100%;
+        }
+
+        /* 1) Move delete button to bottom-right of card */
+        /* In the vehicle card, update the delete button's class from:
+           class="absolute top-2 right-2"
+           to:
+           class="absolute bottom-2 right-2 text-red-500 hover:text-red-700 transition"
+
+        /* 3) Add Vehicle Modal: Preview and error feedback styling */
+        /* Add styles for the error message and preview container:
+           .text-red-500.text-xs.mt-1 { ... } // for error feedback
+           .mt-3.w-full.h-32.bg-gray-800.rounded-lg.overflow-hidden.flex.items-center.justify-center { ... } // for image preview
+           .max-h-full.object-contain { ... } // for preview image
+        }
+
+        /* 1) Enforce fixed aspect ratio and object-fit on all vehicle/app images */
+        .vehicle-card img,
+        .image-preview-lg img,
+        img {
+          width: 100%;
+          height: auto;
+          object-fit: cover;
+        }
+
+        /* 2) Give all images in the vehicles grid a consistent fixed height */
+        .vehicles-list-container img {
+          width: 100% !important;
+          height: 12rem !important;
+          object-fit: cover !important;
+          object-position: center center;
+        }
+
+        /* 3) Remove any conflicting inline-dimension rules 
+           (if you have <img style="width:…;height:…"> on vehicle cards, remove those inline attributes) */
+
+        /* ------------------------------------------------------------------
+           NEW: Live Notification Panel
+------------------------------------------------------------------ */
+.live-notification-panel {
+  @apply fixed bottom-4 right-4 w-72 bg-white bg-opacity-70 backdrop-blur-md rounded-lg p-4 shadow-lg pointer-events-auto;
+  opacity: 0;
+}
+.fade-enter-active, .fade-leave-active {
+  transition: opacity 0.5s ease;
+}
+.fade-enter-from, .fade-leave-to {
+  opacity: 0;
+}
+.fade-enter-to, .fade-leave-from {
+  opacity: 1;
+}
+</style>
+</head>
+<body class="bg-gray-900 text-gray-100">
+    <div id="app" v-cloak>
+        <!-- Login View -->
+        <div v-if="!isAuthenticated" class="min-h-screen flex items-center justify-center relative">
+            
+            <!-- UPDATED: Video Background wrapper -->
+            <div class="login-background">
+                <!-- Use YouTube embed iframe for background -->
+                <iframe
+                  src="https://www.youtube.com/embed/RiVs0E554o0?autoplay=1&mute=1&loop=1&controls=1&playlist=RiVs0E554o0&modestbranding=1&iv_load_policy=3&rel=0"
+                  frameborder="0"
+                  allow="autoplay; encrypted-media;"
+                  allowfullscreen
+                ></iframe>
+            </div>
+
+            <!-- LOGIN BOX -->
+            <div class="login-container bg-gray-800 bg-opacity-90 p-6 rounded-xl shadow-xl w-full max-w-md relative z-10">
+                <!-- logo removed -->
+                <div class="text-center mb-8">
+                    <h1 class="text-3xl font-bold text-white">Sistema de Gestión de Vehículos</h1>
+                    <p class="mt-2 text-gray-300">Inicia sesión para continuar</p>
+                </div>
+
+                <div v-if="loginError" class="bg-red-800 text-red-200 p-4 mb-4 rounded">
+                    {{ loginError }}
+                </div>
+
+                <form @submit.prevent="login" class="space-y-6">
+                    <div>
+                        <label for="email" class="block text-sm font-semibold">Correo electrónico</label>
+                        <input v-model="credentials.email"
+                               type="email"
+                               id="email"
+                               required
+                               class="mt-1 block w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-gray-200 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                    </div>
+
+                    <div>
+                        <label for="password" class="block text-sm font-semibold">Contraseña</label>
+                        <input v-model="credentials.password"
+                               type="password"
+                               id="password"
+                               required
+                               class="mt-1 block w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-gray-200 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                    </div>
+
+                    <div>
+                        <button type="submit"
+                                class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium bg-indigo-800 text-gray-100 hover:bg-indigo-700 transition">
+                            <span v-if="isLoading" class="loader inline-block w-5 h-5 border-4 border-gray-200 rounded-full border-t-4"></span>
+                            <span v-else>Iniciar sesión</span>
+                        </button>
+                    </div>
+                </form>
+
+                <div class="mt-6 text-center text-gray-400 text-sm">
+                    <p>Cuentas de demostración:</p>
+                    <p class="mt-1"><strong>Admin:</strong> admin@autogps.com / admin</p>
+                    <p><strong>Usuario:</strong> usuario@gmail.com / usuario</p>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Main Application -->
+        <div v-else>
+            <!-- Header -->
+            <header class="bg-gray-800 shadow-md">
+                <div class="mx-auto px-4 sm:px-6 lg:px-8">
+                    <div class="flex justify-between items-center py-4">
+                        <div class="flex items-center">
+                            <i class="fas fa-car-side text-white text-2xl mr-3"></i>
+                            <h1 class="text-xl font-bold text-white">AutoGPS Guadalajara</h1>
+                        </div>
+                        <div class="flex items-center">
+                            <span class="text-white mr-4">{{ currentUser.name }}</span>
+                            <button @click="logout"
+                                    class="bg-green-300 hover:bg-green-500 text-gray-900 py-2 px-4 rounded">
+                                <i class="fas fa-sign-out-alt mr-2"></i> Cerrar sesión
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </header>
+            
+            <!-- Admin Dashboard -->
+            <div v-if="currentUser.role === 'admin'" class="flex">
+                <!-- Sidebar -->
+                <aside class="sidebar w-64 bg-white shadow-md">
+                    <nav class="mt-5 px-2">
+                        <a href="javascript:void(0)" @click="setActiveView('dashboard')" class="group flex items-center px-2 py-2 text-base font-medium rounded-md" :class="activeView === 'dashboard' ? 'bg-indigo-100 text-indigo-600' : 'text-gray-600 hover:bg-gray-50'">
+                            <i class="fas fa-tachometer-alt mr-3" :class="activeView === 'dashboard' ? 'text-indigo-500' : 'text-gray-400'"></i>
+                            Dashboard
+                        </a>
+                        <a href="javascript:void(0)" @click="setActiveView('users')" class="mt-1 group flex items-center px-2 py-2 text-base font-medium rounded-md" :class="activeView === 'users' ? 'bg-indigo-100 text-indigo-600' : 'text-gray-600 hover:bg-gray-50'">
+                            <i class="fas fa-users mr-3" :class="activeView === 'users' ? 'text-indigo-500' : 'text-gray-400'"></i>
+                            Usuarios
+                        </a>
+                        <a href="javascript:void(0)" @click="setActiveView('vehicles')" class="mt-1 group flex items-center px-2 py-2 text-base font-medium rounded-md" :class="activeView === 'vehicles' ? 'bg-indigo-100 text-indigo-600' : 'text-gray-600 hover:bg-gray-50'">
+                            <i class="fas fa-car mr-3" :class="activeView === 'vehicles' ? 'text-indigo-500' : 'text-gray-400'"></i>
+                            Vehículos
+                        </a>
+                        <a href="javascript:void(0)" @click="setActiveView('assignments')" class="mt-1 group flex items-center px-2 py-2 text-base font-medium rounded-md" :class="activeView === 'assignments' ? 'bg-indigo-100 text-indigo-600' : 'text-gray-600 hover:bg-gray-50'">
+                            <i class="fas fa-link mr-3" :class="activeView === 'assignments' ? 'text-indigo-500' : 'text-gray-400'"></i>
+                            Asignaciones
+                        </a>
+                        <a href="javascript:void(0)" @click="setActiveView('map')" class="mt-1 group flex items-center px-2 py-2 text-base font-medium rounded-md" :class="activeView === 'map' ? 'bg-indigo-100 text-indigo-600' : 'text-gray-600 hover:bg-gray-50'">
+                            <i class="fas fa-map-marked-alt mr-3" :class="activeView === 'map' ? 'text-indigo-500' : 'text-gray-400'"></i>
+                            Mapa Global
+                        </a>
+                    </nav>
+                </aside>
+                
+                <!-- Content Area -->
+                <main class="flex-1 p-6">
+                    <!-- Dashboard -->
+                    <div v-if="activeView === 'dashboard'">
+                        <h2 class="text-2xl font-bold text-gray-100 mb-6">Dashboard de Administrador</h2>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <div class="bg-gray-800 rounded-lg shadow-lg p-6">
+                                <div class="flex items-center">
+                                    <div class="p-3 rounded-full bg-indigo-100 text-indigo-500">
+                                        <i class="fas fa-users text-xl"></i>
+                                    </div>
+                                    <div class="ml-4">
+                                        <p class="text-sm text-gray-400">Total Usuarios</p>
+                                        <p class="text-lg font-semibold text-gray-100">{{ users.length }}</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="bg-gray-800 rounded-lg shadow-lg p-6">
+                                <div class="flex items-center">
+                                    <div class="p-3 rounded-full bg-green-100 text-green-500">
+                                        <i class="fas fa-car text-xl"></i>
+                                    </div>
+                                    <div class="ml-4">
+                                        <p class="text-sm text-gray-400">Total Vehículos</p>
+                                        <p class="text-lg font-semibold text-gray-100">{{ vehicles.length }}</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="bg-gray-800 rounded-lg shadow-lg p-6">
+                                <div class="flex items-center">
+                                    <div class="p-3 rounded-full bg-yellow-100 text-yellow-500">
+                                        <i class="fas fa-link text-xl"></i>
+                                    </div>
+                                    <div class="ml-4">
+                                        <p class="text-sm text-gray-400">Asignaciones</p>
+                                        <p class="text-lg font-semibold text-gray-100">{{ assignments.length }}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- ── NEW “Gráficas” Section ── -->
+                        <section class="mt-8">
+                            <h3 class="text-2xl font-bold text-white mb-4">Gráficas</h3>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <!-- Pie chart: Distribución de Vehículos por Marca -->
+                                <div class="bg-gray-800 p-4 rounded-lg shadow-lg">
+                                    <canvas id="chartByBrand"></canvas>
+                                </div>
+                                <!-- Pie/donut chart: Disponibilidad de Vehículos -->
+                                <div class="bg-gray-800 p-4 rounded-lg shadow-lg">
+                                    <canvas id="chartAvailability"></canvas>
+                                </div>
+                            </div>
+                            <!-- Bar chart: Actividad de Asignaciones Diaria -->
+                            <div class="mt-6 bg-gray-800 p-4 rounded-lg shadow-lg">
+                                <canvas id="chartAssignmentsDaily"></canvas>
+                            </div>
+                        </section>
+
+                        <div class="mt-8 bg-gray-800 rounded-lg shadow-lg overflow-hidden">
+                          <!-- Header -->
+                          <div class="bg-gray-900 px-6 py-4">
+                            <h3 class="text-2xl font-bold text-white">Gráficas de Vehículos</h3>
+                          </div>
+                          <!-- Body: placeholder for chart -->
+                          <div class="p-6 overflow-auto">
+                            <!-- Example description -->
+                            <p class="text-gray-300 mb-4">
+                              A continuación se muestran estadísticas clave de su flota:
+                            </p>
+                            <!-- Chart placeholder -->
+                            <div id="vehicleChart"
+                                 class="w-full h-64 bg-gray-700 rounded-md flex items-center justify-center text-gray-500">
+                              <!-- Replace with your charting library canvas or SVG -->
+                              Gráfico de ejemplo aquí
+                            </div>
+                            <!-- Optional more text -->
+                            <p class="text-gray-400 text-sm mt-4">
+                              Total Usuarios: {{ users.length }} &nbsp;|&nbsp;
+                              Total Vehículos: {{ vehicles.length }} &nbsp;|&nbsp;
+                              Asignaciones: {{ assignments.length }}
+                            </p>
+                          </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Users Management -->
+                    <div v-if="activeView === 'users'">
+                        <div class="flex justify-between items-center mb-6">
+                            <h2 class="text-2xl font-bold text-gray-800">Gestión de Usuarios</h2>
+                            <button @click="openAddUserModal" class="bg-indigo-600 hover:bg-indigo-700 text-white py-2 px-4 rounded flex items-center">
+                                <i class="fas fa-user-plus mr-2"></i> Agregar Usuario
+                            </button>
+                        </div>
+                        <div class="bg-gray-700 shadow-md rounded-lg overflow-hidden">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nombre</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Correo</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rol</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Vehículos</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white divide-y divide-gray-200">
+                                    <tr v-for="user in users" :key="user.id">
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ user.id }}</td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ user.name }}</td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ user.email }}</td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                            <span :class="user.role === 'admin' ? 'bg-purple-100 text-purple-800' : 'bg-green-100 text-green-800'" class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full">
+                                                {{ user.role === 'admin' ? 'Administrador' : 'Usuario' }}
+                                            </span>
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                            {{ getUserVehicleCount(user.id) }}
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                            <button @click="editUser(user)" class="text-indigo-600 hover:text-indigo-900 mr-4">
+                                                <i class="fas fa-edit"></i>
+                                            </button>
+                                            <button @click="deleteUser(user.id)" class="text-red-600 hover:text-red-900">
+                                                <i class="fas fa-trash-alt"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    
+                    <!-- Vehicles Management -->
+                    <div v-if="activeView === 'vehicles'">
+                        <div class="flex justify-between items-center mb-6">
+                            <h2 class="text-2xl font-bold text-gray-800">Catálogo de Vehículos</h2>
+                            <button @click="openAddVehicleModal" class="flex items-center bg-blue-200 hover:bg-blue-300 text-gray-900 py-2 px-4 rounded-md shadow-sm transition">
+                              <i class="fas fa-car-side mr-2"></i> Agregar Vehículo
+                            </button>
+                        </div>
+                        <div class="vehicles-list-container grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                            <div v-for="vehicle in vehicles" :key="vehicle.id"
+                                 @click="viewUserVehicleDetails(vehicle)"
+                                 class="group relative bg-white rounded-xl shadow-md overflow-hidden cursor-pointer transform transition hover:shadow-xl hover:scale-105">
+                              <div class="relative h-48">
+                                <img :src="vehicle.photo"
+                                     alt="Vehículo"
+                                     class="w-full h-full object-cover">
+                                <div class="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-60"></div>
+                                <div class="absolute bottom-3 left-3 text-white">
+                                  <h3 class="text-lg font-semibold">{{ vehicle.brand }} {{ vehicle.model }}</h3>
+                                  <p class="text-sm">{{ vehicle.year }}</p>
+                                </div>
+                              </div>
+                              <span :class="assignBadgeClass(vehicle.id)"
+                                    class="absolute top-3 right-3 px-2 py-1 text-xs font-medium rounded-full shadow bg-green-50 text-green-800">
+                                {{ assignmentBadgeText(vehicle.id) }}
+                              </span>
+                              <div class="p-4 border-t border-gray-100">
+                                <p class="text-sm text-gray-600">Matrícula: <span class="font-semibold">{{ vehicle.plate }}</span></p>
+                              </div>
+                              <!-- Add a delete button here, bottom-right -->
+                              <button 
+                                @click.stop="deleteVehicle(vehicle.id)"
+                                class="absolute bottom-2 right-2 text-red-500 hover:text-red-700 transition"
+                                title="Eliminar vehículo"
+                              >
+                                <i class="fas fa-trash-alt"></i>
+                              </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Assignments Management -->
+                    <div v-if="activeView === 'assignments'">
+                      <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-2xl font-semibold text-gray-200">Asignaciones</h2>
+                        <button @click="showAddAssignmentModal = true"
+                                class="flex items-center bg-indigo-800 hover:bg-indigo-700 text-white py-2 px-4 rounded shadow transition">
+                          <i class="fas fa-plus mr-2"></i> Asignar Nuevo
+                        </button>
+                      </div>
+
+                      <!-- ↓↓↓ REPLACED: New Full-Screen Assignment Form ↓↓↓ -->
+                      <div
+                        v-if="showAddAssignmentModal"
+                        class="fixed inset-0 z-50 bg-gray-900 bg-opacity-95 flex flex-col"
+                      >
+                        <!-- Top: User Selector -->
+                        <div class="p-6 border-b border-gray-700">
+                          <h3 class="text-xl font-semibold text-white mb-4">Seleccionar Usuario</h3>
+                          <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 overflow-y-auto max-h-48">
+                            <div
+                              v-for="u in getNonAdminUsers()" :key="u.id"
+                              @click="selectedAssignUser = u"
+                              :class="[
+                                'flex items-center p-3 rounded-lg cursor-pointer transition',
+                                selectedAssignUser?.id === u.id ? 'ring-2 ring-indigo-500' : 'hover:bg-gray-800'
+                              ]"
+                            >
+                              <img :src="u.photoUrl || defaultUserPhoto" class="w-12 h-12 rounded-full mr-3" alt="Foto usuario"/>
+                              <div>
+                                <p class="font-medium text-white">{{ u.name }}</p>
+                                <p class="text-sm text-gray-400">{{ u.email }}</p>
+                              </div>
+                            </div>
+                          </div>
+                          <p v-if="!selectedAssignUser" class="text-red-500 mt-2">Debe seleccionar un usuario.</p>
+                        </div>
+
+                        <!-- Bottom: Vehicles List -->
+                        <div class="flex-1 p-6 overflow-y-auto">
+                          <h3 class="text-xl font-semibold text-white mb-4">Vehículos Disponibles</h3>
+                          <div class="grid assignments-grid gap-6">
+                            <div
+                              v-for="v in vehicles" :key="v.id"
+                              @click="selectedAssignVehicle = v"
+                              :class="[
+                                'bg-gray-800 p-4 rounded-lg cursor-pointer transition flex items-start space-x-3',
+                                selectedAssignVehicle?.id === v.id ? 'ring-2 ring-indigo-500' : 'hover:bg-gray-700'
+                              ]"
+                            >
+                              <img :src="v.photo" class="w-16 h-16 object-cover rounded" alt="Foto vehículo"/>
+                              <div class="flex-1">
+                                <p class="text-white font-semibold">{{ v.brand }} {{ v.model }}</p>
+                                <p class="text-sm text-gray-400">{{ v.plate }}</p>
+                              </div>
+                              <span v-if="assignments.find(a=>a.vehicleId===v.id)"
+                                    class="px-2 py-1 text-xs bg-red-600 text-white rounded-full self-start">
+                                Asignado
+                              </span>
+                            </div>
+                          </div>
+                          <p v-if="!selectedAssignVehicle" class="text-red-500 mt-2">Debe seleccionar un vehículo.</p>
+                        </div>
+
+                        <!-- Actions -->
+                        <div class="p-6 border-t border-gray-700 flex justify-end space-x-4">
+                          <button @click="showAddAssignmentModal = false"
+                                  class="bg-gray-700 hover:bg-gray-600 text-gray-200 py-2 px-4 rounded transition">
+                            Cancelar
+                          </button>
+                          <button @click="confirmAssignment"
+                                  :disabled="!selectedAssignUser || !selectedAssignVehicle"
+                                  class="bg-green-600 hover:bg-green-700 text-white py-2 px-6 rounded transition disabled:opacity-50">
+                            Guardar asignación
+                          </button>
+                        </div>
+                      </div>
+                      <!-- ↑↑↑ end new form ↑↑↑ -->
+
+                      <!-- ↓↓↓ UPDATED: Real-Time Assignment List ↓↓↓ -->
+                      <div class="mt-6 space-y-4">
+                        <div
+                          v-for="a in assignments" :key="a.id"
+                          class="bg-gray-800 p-4 rounded-lg flex items-center"
+                        >
+                          <!-- Vehicle photo -->
+                          <img
+                            :src="getVehiclePhoto(a.vehicleId)"
+                            alt="Foto vehículo"
+                            class="w-16 h-16 rounded object-cover mr-4 flex-shrink-0"
+                          />
+                          <!-- Info block -->
+                          <div class="flex-1">
+                            <p class="text-sm text-gray-400">Vehículo</p>
+                            <p class="text-white font-medium">
+                              {{ getVehicleName(a.vehicleId) }}
+                              <span class="text-xs text-gray-400 ml-2">({{ getVehiclePlate(a.vehicleId) }})</span>
+                            </p>
+                            <p class="mt-2 text-sm text-gray-400">Asignado a</p>
+                            <p class="text-white font-medium">
+                              {{ getUserName(a.userId) }}
+                              <span class="text-xs text-gray-400 ml-2">{{ getUserEmail(a.userId) }}</span>
+                            </p>
+                          </div>
+                          <!-- Delete button -->
+                          <button
+                            @click="deleteAssignment(a.id)"
+                            class="text-red-400 hover:text-red-600 ml-4"
+                          >
+                            <i class="fas fa-trash-alt"></i>
+                          </button>
+                        </div>
+                      </div>
+                      <!-- ↑↑↑ end assignment list ↑↑↑ -->
+                    </div>
+                    
+                    <!-- Global Map -->
+                    <div v-if="activeView === 'map'">
+                        <h2 class="text-2xl font-bold text-gray-800 mb-6">Mapa Global de Vehículos</h2>
+                        <div class="bg-white p-4 rounded-lg shadow">
+                            <div id="globalMap" class="map-container rounded"></div>
+                            <div class="mt-4 flex justify-between items-center">
+                                <div>
+                                    <span class="text-sm text-gray-600">Total de vehículos: {{ vehicles.length }}</span>
+                                </div>
+                                <button @click="refreshMap" class="bg-blue-200 hover:bg-blue-300 text-gray-900 py-2 px-4 rounded">
+                                    <i class="fas fa-sync-alt mr-2"></i> Actualizar Mapa
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="mt-6 bg-white p-4 rounded-lg shadow">
+                            <h3 class="text-lg font-semibold mb-4">Lista de Vehículos</h3>
+                            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                <div v-for="vehicle in vehicles" :key="vehicle.id" class="border border-gray-200 rounded p-3 flex items-center">
+                                    <div class="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center mr-3">
+                                        <i class="fas fa-car text-indigo-500"></i>
+                                    </div>
+                                    <div>
+                                        <h4 class="font-medium">{{ vehicle.brand }} {{ vehicle.model }}</h4>
+                                        <p class="text-sm">{{ vehicle.year }} • {{ vehicle.plate }}</p>
+                                    </div>
+                                    <button @click="centerMapOnVehicle(vehicle)" class="ml-auto text-indigo-600 hover:text-indigo-800">
+                                        <i class="fas fa-search-location"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </main>
+            </div>
+            
+            <!-- User dashboard for non-admin -->
+            <div v-else class="flex flex-col h-[calc(100vh-64px)]">
+              <!-- Only the scrollable assigned-vehicles list -->
+              <div class="overflow-y-auto flex-1 bg-gray-900 p-4">
+                <h2 class="text-2xl font-semibold text-gray-100 mb-4">Mis Vehículos Asignados</h2>
+                <template v-if="getUserVehicles().length">
+                  <div class="space-y-4">
+                    <div
+                      v-for="vehicle in getUserVehicles()"
+                      :key="vehicle.id"
+                      @click="viewUserVehicleDetails(vehicle); centerMapOnVehicle(vehicle)"
+                      class="flex items-center bg-gray-800 hover:bg-gray-700 cursor-pointer rounded-lg p-3 transition"
+                    >
+                      <img :src="vehicle.photo" alt="Foto"
+                           class="w-16 h-16 object-cover rounded mr-4" />
+                      <div class="flex-1 text-gray-100">
+                        <p class="font-medium">{{ vehicle.brand }} {{ vehicle.model }}</p>
+                        <p class="text-sm">{{ vehicle.year }} • {{ vehicle.plate }}</p>
+                      </div>
+                    </div>
+                  </div>
+                </template>
+                <div v-else class="text-gray-400 italic">
+                  No tienes vehículos asignados actualmente.
+                </div>
+              </div>
+            </div>
+        </div>
+        
+        <!-- Modals -->
+        <!-- User Vehicle Details Modal -->
+        <div 
+          v-if="showVehicleDetailsModal"
+          class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"
+          @click.self="showVehicleDetailsModal = false"
+        >
+          <transition name="fade">
+            <div 
+              class="relative bg-gray-900 bg-opacity-95 max-w-3xl w-full mx-4 md:mx-0 p-8 rounded-xl shadow-2xl overflow-y-auto"
+              style="max-height: 90vh;"
+            >
+              <!-- Close button -->
+              <button 
+                @click="showVehicleDetailsModal = false" 
+                class="absolute top-4 right-4 text-gray-300 hover:text-white"
+              >
+                <i class="fas fa-times fa-lg"></i>
+              </button>
+
+              <!-- Vehicle Image (enlarged) -->
+              <div class="mb-6">
+                <!-- Display current or preview image -->
+                <img 
+                  :src=" isEditingImage ? imagePreview : selectedVehicle.photo"
+                  alt="Vehículo"
+                  class="w-full h-64 object-cover rounded-lg shadow-md"
+                />
+                <!-- Edit Image Toggle Button -->
+                <button
+                  @click="toggleEditImage"
+                  class="mt-2 inline-flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded shadow"
+                >
+                  <i class="fas fa-image mr-2"></i>
+                  {{ isEditingImage ? 'Cancelar Edición' : 'Editar Imagen' }}
+                </button>
+
+                <!-- Edit controls: file + URL, shown only when editing image -->
+                <div v-if="isEditingImage" class="mt-4 edit-image-container
+                        flex flex-col md:flex-row md:space-x-6 space-y-4 md:space-y-0">
+                  <!-- File input -->
+                  <div class="flex-1">
+                    <label class="block text-sm font-semibold text-gray-700">Subir archivo</label>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      @change="onVehicleFileChange"
+                      class="mt-1 block w-full
+                             file:mr-4 file:py-2 file:px-4
+                             file:rounded-full file:border-0
+                             file:text-sm file:font-semibold
+                             file:bg-indigo-100 file:text-indigo-700
+                             hover:file:bg-indigo-200
+                             transition-colors duration-200 ease-in-out"
+                    />
+                    <p v-if="fileError" class="text-red-600 text-xs mt-1">{{ fileError }}</p>
+                  </div>
+
+                  <!-- Guardar Imagen button for image -->
+                  <div class="flex-1 flex items-end justify-end">
+                    <button
+                      @click="confirmVehicleImage"
+                      :disabled="isSavingImage"
+                      class="btn-agardar inline-flex items-center px-6 py-3 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded shadow transition"
+                    >
+                      <span v-if="isSavingImage" class="loader mr-2"></span>
+                      Guardar Imagen
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Preview container: put it just below -->
+                <div v-if="imagePreview"
+                     class="mt-4 mx-auto md:mx-0 w-48 h-48 md:w-64 md:h-64
+                            border border-gray-200 rounded-lg shadow-lg
+                            overflow-hidden transition-transform duration-200 ease-in-out
+                            hover:scale-105 image-preview-lg">
+                  <img :src="imagePreview"
+                       class="w-full h-full object-cover"
+                       alt="Preview de vehículo"/>
+                </div>
+
+                <!-- Vehicle Details (enlarged typography) -->
+                <div class="space-y-4 text-gray-800">
+                  <!-- Title stays read-only -->
+                  <h2 class="text-2xl font-bold">{{ selectedVehicle.brand }} {{ selectedVehicle.model }}</h2>
+
+                  <dl class="space-y-2">
+                    <!-- Año (read-only) -->
+                    <div>
+                      <dt class="text-sm font-semibold">Año</dt>
+                      <dd class="text-lg">{{ selectedVehicle.year }}</dd>
+                    </div>
+
+                    <!-- Matrícula editable -->
+                    <div>
+                      <dt class="text-sm font-semibold">Matrícula</dt>
+                      <dd>
+                        <template v-if="!isEditingDetails">
+                          {{ selectedVehicle.plate }}
+                        </template>
+                        <template v-else>
+                          <input v-model="selectedVehicle.plate"
+                                 class="input-edit transition-smooth w-full"
+                                 type="text" />
+                        </template>
+                      </dd>
+                    </div>
+
+                    <!-- Serie editable -->
+                    <div>
+                      <dt class="text-sm font-semibold">Serie</dt>
+                      <dd>
+                        <template v-if="!isEditingDetails">
+                          {{ selectedVehicle.series }}
+                        </template>
+                        <template v-else>
+                          <input v-model="selectedVehicle.series"
+                                 class="input-edit transition-smooth w-full"
+                                 type="text" />
+                        </template>
+                      </dd>
+                    </div>
+
+                    <!-- Estado editable -->
+                    <div>
+                      <dt class="text-sm font-semibold">Estado</dt>
+                      <dd>
+                        <template v-if="!isEditingDetails">
+                          {{ selectedVehicle.status }}
+                        </template>
+                        <template v-else>
+                          <select v-model="selectedVehicle.status"
+                                  class="input-edit transition-smooth w-full">
+                            <option value="Operativo">Operativo</option>
+                            <option value="Mantenimiento">Mantenimiento</option>
+                          </select>
+                        </template>
+                      </dd>
+                    </div>
+                  </dl>
+                </div>
+
+                <!-- Map & Controls -->
+                <div class="mt-6">
+                  <div class="relative mb-4">
+                    <div 
+                      id="vehicleDetailMap"
+                      class="w-full h-48 rounded-md border"
+                      :class="{ 'opacity-50': isMapRefreshing }"
+                    ></div>
+                    <!-- subtle flash icon -->
+                    <transition name="fade">
+                      <div v-if="showHistoryUpdateNotif"
+                           class="absolute top-2 right-2 bg-white bg-opacity-75 rounded-full p-1 text-blue-600 shadow animate-pulse">
+                        <i class="fas fa-history"></i>
+                      </div>
+                    </transition>
+                    <button 
+                      @click="refreshVehicleMap"
+                      class="absolute top-2 right-2 bg-indigo-600 text-white p-2 rounded-full hover:bg-indigo-700 animate-spin"
+                      :class="{ 'animate-spin': isMapRefreshing }"
+                    >
+                      <i class="fas fa-sync-alt"></i>
+                    </button>
+                  </div>
+
+                  <!-- Action Buttons -->
+                  <div class="mt-6 flex space-x-3">
+                    <!-- Save only shows in edit mode -->
+                    <button v-if="isEditingDetails"
+                            @click="saveVehicleDetails"
+                            class="button-edit bg-indigo-800 text-gray-100 hover:bg-indigo-700 transition">
+                      Guardar Cambios
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </transition>
+        </div>
+        
+        <!-- Add User Modal -->
+        <div v-if="showAddUserModal"
+             class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div 
+            class="bg-gray-800 bg-opacity-90 text-white rounded-lg shadow-xl w-full max-w-md transition-colors duration-300">
+
+            <div class="p-6">
+              <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-bold">{{ editingUser ? 'Editar Usuario' : 'Añadir Nuevo Usuario' }}</h3>
+                <button @click="showAddUserModal = false"
+                        class="text-gray-300 hover:text-white transition-colors duration-200">
+                  <i class="fas fa-times text-lg"></i>
+                </button>
+              </div>
+
+              <form @submit.prevent="saveUser" class="space-y-6">
+                <div>
+                  <label for="userName" class="block text-sm font-medium">Nombre</label>
+                  <input v-model="newUser.name"
+                         type="text"
+                         id="userName"
+                         required
+                         class="mt-1 block w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white placeholder-gray-400
+                                focus:bg-gray-600 focus:border-indigo-500 focus:outline-none transition-colors duration-200"/>
+                </div>
+                
+                <div>
+                  <label for="userEmail" class="block text-sm font-medium">Correo electrónico</label>
+                  <input v-model="newUser.email"
+                         type="email"
+                         id="userEmail"
+                         required
+                         class="mt-1 block w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white placeholder-gray-400
+                                focus:bg-gray-600 focus:border-indigo-500 focus:outline-none transition-colors duration-200"/>
+                </div>
+                
+                <div v-if="!editingUser">
+                  <label for="userPassword" class="block text-sm font-medium">Contraseña</label>
+                  <input v-model="newUser.password"
+                         type="password"
+                         id="userPassword"
+                         required
+                         class="mt-1 block w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white placeholder-gray-400
+                                focus:bg-gray-600 focus:border-indigo-500 focus:outline-none transition-colors duration-200"/>
+                </div>
+                
+                <div>
+                  <label for="userRole" class="block text-sm font-medium">Rol</label>
+                  <select v-model="newUser.role"
+                          id="userRole"
+                          required
+                          class="mt-1 block w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white placeholder-gray-500 focus:border-indigo-500 focus:outline-none transition-colors duration-200">
+                    <option value="user">Usuario</option>
+                    <option value="admin">Administrador</option>
+                  </select>
+                </div>
+                
+                <div class="mt-6 flex justify-end space-x-2">
+                  <button type="button"
+                          @click="showAddUserModal = false"
+                          class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-md transition-colors duration-200">
+                    Cancelar
+                  </button>
+                  <button type="submit"
+                          class="px-4 py-2 bg-indigo-700 hover:bg-indigo-600 text-white rounded-md shadow transition-colors duration-200">
+                    {{ editingUser ? 'Actualizar' : 'Guardar' }}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Add Vehicle Modal -->
+        <div v-if="showAddVehicleModal" class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50">
+            <div class="bg-gray-900 rounded-lg w-full max-w-md p-6">
+                <div class="flex justify-between items-center mb-4">
+                  <h3 class="text-xl font-semibold text-white">
+                    {{ editingVehicle ? 'Editar Vehículo' : 'Añadir Nuevo Vehículo' }}
+                  </h3>
+                  <button @click="showAddVehicleModal = false" class="text-gray-400 hover:text-gray-200">
+                    <i class="fas fa-times text-lg"></i>
+                  </button>
+                </div>
+                <form @submit.prevent="saveVehicle" class="space-y-4">
+                  <div>
+                    <label for="vehicleBrand" class="block text-sm font-medium text-gray-300">Marca</label>
+                    <input
+                      v-model="newVehicle.brand"
+                      id="vehicleBrand"
+                      type="text"
+                      required
+                      class="mt-1 block w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-md text-white placeholder-gray-500 focus:border-indigo-500 focus:outline-none transition"
+                    />
+                    <p v-if="!newVehicle.brand" class="text-red-500 text-xs mt-1">La marca es obligatoria.</p>
+                  </div>
+                  <div>
+                    <label for="vehicleModel" class="block text-sm font-medium text-gray-300">Modelo</label>
+                    <input
+                      v-model="newVehicle.model"
+                      id="vehicleModel"
+                      type="text"
+                      required
+                      class="mt-1 block w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-md text-white placeholder-gray-500 focus:border-indigo-500 focus:outline-none transition"
+                    />
+                    <p v-if="!newVehicle.model" class="text-red-500 text-xs mt-1">El modelo es obligatorio.</p>
+                  </div>
+                  <div>
+                    <label for="vehicleYear" class="block text-sm font-medium text-gray-300">Año</label>
+                    <input
+                      v-model="newVehicle.year"
+                      id="vehicleYear"
+                      type="number"
+                      required
+                      class="mt-1 block w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-md text-white placeholder-gray-500 focus:border-indigo-500 focus:outline-none transition"
+                    />
+                  </div>
+                  <div>
+                    <label for="vehiclePlate" class="block text-sm font-medium text-gray-300">Matrícula</label>
+                    <input
+                      v-model="newVehicle.plate"
+                      id="vehiclePlate"
+                      type="text"
+                      required
+                      class="mt-1 block w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-md text-white placeholder-gray-500 focus:border-indigo-500 focus:outline-none transition"
+                    />
+                  </div>
+                  <div>
+                    <label for="vehicleType" class="block text-sm font-medium text-gray-300">Tipo</label>
+                    <select
+                      v-model="newVehicle.type"
+                      id="vehicleType"
+                      required
+                      class="mt-1 block w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-md text-white placeholder-gray-500 focus:border-indigo-500 focus:outline-none transition"
+                    >
+                      <option value="sedan">Sedán</option>
+                      <option value="pickup">Pickup</option>
+                      <option value="suv">SUV</option>
+                      <option value="hatchback">Hatchback</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label class="block text-sm font-medium text-gray-300">Foto (archivo)</label>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      @change="onVehicleFileChange"
+                      class="mt-1 block w-full text-gray-200"
+                    />
+                    <!-- error feedback -->
+                    <p v-if="fileError" class="text-red-500 text-xs mt-1">{{ fileError }}</p>
+                    <!-- live preview -->
+                    <div v-if="imagePreview"
+                         class="mt-3 w-full h-32 bg-gray-800 rounded-lg overflow-hidden flex items-center justify-center">
+                      <img :src="imagePreview"
+                           class="max-h-full object-contain"
+                           alt="Preview de vehículo"/>
+                    </div>
+                  </div>
+                  <div class="flex justify-end space-x-2 pt-4">
+                    <button
+                      type="button"
+                      @click="showAddVehicleModal = false"
+                      class="px-4 py-2 text-gray-300 hover:text-white"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="submit"
+                      :disabled="!newVehicle.brand || !newVehicle.model"
+                      class="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-500 transition disabled:opacity-50"
+                    >
+                      {{ editingVehicle ? 'Actualizar' : 'Guardar' }}
+                    </button>
+                  </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <transition name="fade">
+      <div
+        v-if="notifications.length"
+        class="live-notification-panel"
+      >
+        <ul class="space-y-2">
+          <li
+            v-for="note in notifications"
+            :key="note.id"
+            class="text-sm text-gray-800"
+          >
+            {{ note.message }}
+          </li>
+        </ul>
+      </div>
+    </transition>
+
+    <script id="app-script">
+        const { createApp, ref, reactive, onMounted, computed, watch } = Vue;
+        
+        const app = createApp({
+            setup() {
+                // Authentication State
+                const isAuthenticated = ref(false);
+                const isLoading = ref(false);
+                const loginError = ref('');
+                const credentials = reactive({
+                    email: '',
+                    password: ''
+                });
+                const currentUser = ref(null);
+                
+                // UI State
+                const activeView = ref('dashboard');
+                const showVehicleDetailsModal = ref(false);
+                const showAddUserModal = ref(false);
+                const showAddVehicleModal = ref(false);
+                const showAddAssignmentModal = ref(false);
+                const selectedVehicle = ref(null);
+                const editingUser = ref(false);
+                const editingVehicle = ref(false);
+                const isEditingDetails = ref(false);         // +++ new
+                const isEditingImage = ref(false);       // +++ new
+                
+                // Maps
+                let globalMap = null;
+                let globalMapInterval = null;        // <-- NEW: hold our auto‐refresh timer
+                let vehicleDetailMap = null;
+                const vehicleMarkers = ref({});
+                let locationInterval = null;
+                let userMap = null; // for user dashboard map
+                const userMarkers = ref({});  // NEW: store L.marker instances keyed by vehicle id
+                let userMapInterval = null;   // NEW: interval for updating userMap
+                
+                // Mock Data
+                const users = ref([
+                    { id: 1, name: 'Administrador', email: 'admin@autogps.com', password: 'admin', role: 'admin' },
+                    { id: 2, name: 'Carlos Rodríguez', email: 'usuario@gmail.com', password: 'usuario', role: 'user' },
+                    { id: 3, name: 'Ana López', email: 'ana.lopez@gmail.com', password: 'usuario', role: 'user' },
+                    { id: 4, name: 'Roberto Méndez', email: 'roberto.mendez@gmail.com', password: 'usuario', role: 'user' }
+                ]);
+                
+                const vehicles = ref([
+                    { id: 1, brand:'Honda',   model:'Civic',    year:2023, plate:'JDM-0001', photo:'https://cdn.pixabay.com/photo/2017/08/06/00/05/honda-2583313_1280.jpg', series:'HC2023-XYZ', status:'Operativo',
+                      location:{lat:20.66,lng:-103.35} },
+                    { id: 2, brand:'Toyota',  model:'Corolla',  year:2022, plate:'TYT-0002', photo:'https://cdn.pixabay.com/photo/2016/11/29/02/09/car-1867310_1280.jpg', series:'TC2022-ABC', status:'Mantenimiento',
+                      location:{lat:20.67,lng:-103.36} },
+                    { id: 3, brand:'Ford',    model:'Ranger',   year:2021, plate:'FRD-0003', photo:'https://cdn.pixabay.com/photo/2016/07/11/15/00/ford-1511100_1280.jpg', series:'FR2021-DEF', status:'Operativo',
+                      location:{lat:20.68,lng:-103.37} },
+                    { id: 4, brand:'Chevrolet', model:'Suburban', year:2020, plate:'CHV-0004', photo:'https://cdn.pixabay.com/photo/2016/07/11/15/00/chevrolet-1511100_1280.jpg', series:'CS2020-GHI', status:'Mantenimiento',
+                      location:{lat:20.69,lng:-103.38} },
+                    { id: 5, brand:'Nissan',  model:'Frontier', year:2019, plate:'NSN-0005', photo:'https://cdn.pixabay.com/photo/2016/07/11/15/00/nissan-1511100_1280.jpg', series:'NF2019-IJK', status:'Operativo',
+                      location:{lat:20.70,lng:-103.39} },
+                    { id: 6, brand:'Mazda',   model:'CX-5',    year:2018, plate:'MXD-0006', photo:'https://cdn.pixabay.com/photo/2016/07/11/15/00/mazda-1511100_1280.jpg', series:'MC2018-LMN', status:'Operativo',
+                      location:{lat:20.71,lng:-103.40} },
+                    { id: 7, brand:'Hyundai',  model:'Elantra',  year:2017, plate:'HYD-0007', photo:'https://cdn.pixabay.com/photo/2016/07/11/15/00/hyundai-1511100_1280.jpg', series:'HE2017-OPQ', status:'Operativo',
+                      location:{lat:20.72,lng:-103.41} },
+                    { id: 8, brand:'Volkswagen',model:'Golf',    year:2016, plate:'VOL-0008', photo:'https://cdn.pixabay.com/photo/2016/07/11/15/00/volkswagen-1511100_1280.jpg', series:'VG2016-RST', status:'Operativo',
+                      location:{lat:20.73,lng:-103.42} },
+                    { id: 9, brand:'Tesla',   model:'Model 3', year:2015, plate:'TES-0009', photo:'https://cdn.pixabay.com/photo/2016/07/11/15/00/tesla-1511100_1280.jpg', series:'TM2015-UVW', status:'Operativo',
+                      location:{lat:20.74,lng:-103.43} },
+                    { id: 10, brand:'BMW',     model:'X5',      year:2014, plate:'BMW-0010', photo:'https://cdn.pixabay.com/photo/2016/07/11/15/00/bmw-1511100_1280.jpg', series:'BX2014-XYZ', status:'Operativo',
+                      location:{lat:20.75,lng:-103.44} },
+                    { id: 11, brand:'Audi',    model:'A4',      year:2013, plate:'AUD-0011', photo:'https://cdn.pixabay.com/photo/2016/07/11/15/00/audi-1511100_1280.jpg', series:'AA2013-DEF', status:'Operativo',
+                      location:{lat:20.76,lng:-103.45} },
+                    { id: 12, brand:'Mercedes-Benz',model:'C-Class', year:2012, plate:'MB-0012', photo:'https://cdn.pixabay.com/photo/2016/07/11/15/00/mercedes-benz-1511100_1280.jpg', series:'MC2012-GHI', status:'Operativo',
+                      location:{lat:20.77,lng:-103.46} },
+                    { id: 13, brand:'Jeep',    model:'Wrangler', year:2011, plate:'JEEP-0013', photo:'https://cdn.pixabay.com/photo/2016/07/11/15/00/jeep-1511100_1280.jpg', series:'JW2011-OPQ', status:'Operativo',
+                      location:{lat:20.78,lng:-103.47} },
+                    { id: 14, brand:'Land Rover',model:'Defender',year:2010, plate:'LRL-0014', photo:'https://cdn.pixabay.com/photo/2016/07/11/15/00/land-rover-1511100_1280.jpg', series:'LD2010-RST', status:'Operativo',
+                      location:{lat:20.79,lng:-103.48} },
+                    { id: 15, brand:'Ford',    model:'Mustang',  year:2009, plate:'FORD-0015', photo:'https://cdn.pixabay.com/photo/2016/07/11/15/00/ford-1511100_1280.jpg', series:'FM2009-UVW', status:'Operativo',
+                      location:{lat:20.80,lng:-103.49} },
+                    { id: 16, brand:'Chevrolet',model:'Camaro',  year:2008, plate:'CHEV-0016', photo:'https://cdn.pixabay.com/photo/2016/07/11/15/00/chevrolet-1511100_1280.jpg', series:'CC2008-XYZ', status:'Operativo',
+                      location:{lat:20.81,lng:-103.50} },
+                    { id: 17, brand:'Nissan',  model:'Altima',  year:2007, plate:'NSN-0017', photo:'https://cdn.pixabay.com/photo/2016/07/11/15/00/nissan-1511100_1280.jpg', series:'NA2007-DEF', status:'Operativo',
+                      location:{lat:20.82,lng:-103.51} },
+                    { id: 18, brand:'Toyota',  model:'Camry',   year:2006, plate:'TYT-0018', photo:'https://cdn.pixabay.com/photo/2016/07/11/15/00/toyota-1511100_1280.jpg', series:'TC2006-GHI', status:'Operativo',
+                      location:{lat:20.83,lng:-103.52} },
+                    { id: 19, brand:'Honda',   model:'Civic',    year:2005, plate:'JDM-0019', photo:'https://cdn.pixabay.com/photo/2016/07/11/15/00/honda-1511100_1280.jpg', series:'HC2005-IJK', status:'Operativo',
+                      location:{lat:20.84,lng:-103.53} },
+                    { id: 20, brand:'Ford',    model:'Explorer', year:2004, plate:'FORD-0020', photo:'https://cdn.pixabay.com/photo/2016/07/11/15/00/ford-1511100_1280.jpg', series:'FE2004-XYZ', status:'Operativo',
+                      location:{lat:20.85,lng:-103.54} },
+                    { id: 21, brand:'Chevrolet',model:'Silverado',year:2003, plate:'CHEV-0021', photo:'https://cdn.pixabay.com/photo/2016/07/11/15/00/chevrolet-1511100_1280.jpg', series:'CS2003-DEF', status:'Operativo',
+                      location:{lat:20.86,lng:-103.55} },
+                    { id: 22, brand:'Nissan',  model:'Rogue',   year:2002, plate:'NSN-0022', photo:'https://cdn.pixabay.com/photo/2016/07/11/15/00/nissan-1511100_1280.jpg', series:'NR2002-GHI', status:'Operativo',
+                      location:{lat:20.87,lng:-103.56} },
+                    { id: 23, brand:'Toyota',  model:'Corolla',  year:2001, plate:'TYT-0023', photo:'https://cdn.pixabay.com/photo/2016/07/11/15/00/toyota-1511100_1280.jpg', series:'TC2001-IJK', status:'Operativo',
+                      location:{lat:20.88,lng:-103.57} },
+                    { id: 24, brand:'Honda',   model:'Civic',    year:2000, plate:'JDM-0024', photo:'https://cdn.pixabay.com/photo/2016/07/11/15/00/honda-1511100_1280.jpg', series:'HC2000-XYZ', status:'Operativo',
+                      location:{lat:20.89,lng:-103.58} },
+                    { id: 25, brand:'Ford',    model:'Ranger',   year:1999, plate:'FRD-0025', photo:'https://cdn.pixabay.com/photo/2016/07/11/15/00/ford-1511100_1280.jpg', series:'FR1999-DEF', status:'Operativo',
+                      location:{lat:20.90,lng:-103.59} }
+                ]);
+                
+                const assignments = ref([
+                    { id: 1, userId: 2, vehicleId: 1, assignedDate: '2023-05-15' },
+                    { id: 2, userId: 3, vehicleId: 3, assignedDate: '2023-06-20' },
+                    { id: 3, userId: 4, vehicleId: 5, assignedDate: '2023-07-10' }
+                ]);
+                
+                // Form Data
+                const newUser = ref({ name: '', email: '', password: '', role: 'user' });
+                const newVehicle = ref({
+                  brand: '',
+                  model: '',
+                  year: 2023,
+                  plate: '',
+                  type: 'sedan',
+                  photo: '',      // will hold the final Base64 or URL
+                  photoUrl: ''    // temporary URL input
+                });
+                const newAssignment = ref({ userId: '', vehicleId: '' });
+                
+                // Vehicle Locations History
+                // Each entry: { lat, lng, time: Date, label: string }
+                const vehicleLocations = ref([]);
+                
+                // New Reactive State for notification
+                const showHistoryUpdateNotif = ref(false);
+                const notifications = ref([
+                  // { id: 1, message: 'New assignment created' },
+                  // ...
+                ]);
+                
+                // State
+                const showAssignModal        = ref(false);
+                const selectedAssignUser     = ref(null);
+                const selectedAssignVehicle  = ref(null);
+                
+                const showUserDetailModal    = ref(false);
+                const detailUser             = ref(null);
+                
+                // Helpers for photos
+                const defaultUserPhoto = 'https://via.placeholder.com/48';
+                
+                // Functions
+                const login = () => {
+                    isLoading.value = true;
+                    loginError.value = '';
+                    
+                    // Simulate API call
+                    setTimeout(() => {
+                        const user = users.value.find(u => 
+                            u.email === credentials.email && 
+                            u.password === credentials.password
+                        );
+                        
+                        if (user) {
+                            currentUser.value = { ...user };
+                            delete currentUser.value.password;
+                            isAuthenticated.value = true;
+                            // Store token in localStorage
+                            localStorage.setItem('authToken', 'mockToken123');
+                            localStorage.setItem('currentUser', JSON.stringify(currentUser.value));
+                        } else {
+                            loginError.value = 'Credenciales incorrectas. Por favor, intente de nuevo.';
+                        }
+                        
+                        isLoading.value = false;
+                    }, 1000);
+                };
+                
+                const logout = () => {
+                    currentUser.value = null;
+                    isAuthenticated.value = false;
+                    localStorage.removeItem('authToken');
+                    localStorage.removeItem('currentUser');
+                };
+                
+                // Modified setActiveView to include user dashboard map
+                const setActiveView = (view) => {
+                    if (view === 'map') {
+                        clearInterval(globalMapInterval);
+                        globalMapInterval = null;
+                        setTimeout(() => {
+                            initGlobalMap();
+                            globalMapInterval = setInterval(refreshMap, 5000);
+                        }, 100);
+                        activeView.value = view;
+                    }
+                    else if (view === 'user') {
+                        // stop any previous intervals
+                        clearInterval(globalMapInterval);
+                        clearInterval(userMapInterval);
+                        userMapInterval = null;
+                        activeView.value = view;
+                        // initialize map after DOM ready
+                        setTimeout(() => {
+                          initUserMap();
+                          // refresh markers every 5s
+                          userMapInterval = setInterval(updateUserMapMarkers, 5000);
+                        }, 100);
+                    }
+                    else {
+                        clearInterval(globalMapInterval);
+                        globalMapInterval = null;
+                        activeView.value = view;
+                    }
+                };
+                
+                /**
+                 * Initialize a single‐marker map for the logged‐in user's assigned vehicle
+                 */
+                function initUserMap() {
+                    if (userMap) { userMap.off(); userMap.remove(); userMap = null; }
+                    const myVehicles = getUserVehicles();
+                    userMap = L.map('userMap', { zoomControl: true, attributionControl: false });
+                    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png')
+                      .addTo(userMap);
+                    if (!myVehicles.length) {
+                      // no assigned vehicles: default view
+                      userMap.setView([20.6597, -103.3496], 12);
+                      L.control
+                        .popup()
+                        .setLatLng(userMap.getCenter())
+                        .setContent('No tiene vehículos asignados')
+                        .openOn(userMap);
+                      return;
+                    }
+                    // add markers and build a LatLngBounds
+                    const bounds = L.latLngBounds([]);
+                    myVehicles.forEach(v => {
+                      const latlng = [v.location.lat, v.location.lng];
+                      bounds.extend(latlng);
+                      const marker = L.marker(latlng)
+                        .bindPopup(`<strong>${v.brand} ${v.model}</strong><br>Placa: ${v.plate}`)
+                        .addTo(userMap);
+                      userMarkers.value[v.id] = marker;
+                    });
+                    userMap.fitBounds(bounds, { padding: [40, 40] });
+                }
+                
+                const getUserVehicleCount = (userId) => {
+                    return assignments.value.filter(a => a.userId === userId).length;
+                };
+                
+                const getUserVehicles = () => {
+                    if (!currentUser.value) return [];
+                    const userAssignments = assignments.value.filter(a => a.userId === currentUser.value.id);
+                    return vehicles.value.filter(v => userAssignments.some(a => a.vehicleId === v.id));
+                };
+                
+                const viewUserVehicleDetails = (vehicle) => {
+                    isEditingDetails.value = false;
+                    selectedVehicle.value = vehicle;
+                    showVehicleDetailsModal.value = true;
+                    generateVehicleLocationHistory(vehicle);
+                    setTimeout(() => {
+                        initVehicleDetailMap(vehicle);
+                    }, 100);
+                    clearInterval(locationInterval);
+                    locationInterval = setInterval(updateVehicleLocation, 5000);
+                };
+                
+                const viewVehicleLocation = (vehicle) => {
+                    selectedVehicle.value = vehicle;
+                    selectedAssignment.value =
+                      assignments.value.find(a => a.vehicleId === vehicle.id) || null;
+                    showVehicleDetailsModal.value = true;
+                    generateVehicleLocationHistory(vehicle);
+                    setTimeout(() => {
+                        initVehicleDetailMap(vehicle);
+                    }, 100);
+                    if (locationInterval !== null) {
+                        clearInterval(locationInterval);
+                    }
+                    locationInterval = setInterval(() => {
+                        updateVehicleLocation();
+                    }, 30000);
+                };
+                
+                const generateVehicleLocationHistory = (vehicle) => {
+                    const history = [];
+                    const now = new Date();
+                    for (let i = 0; i < 5; i++) {
+                        const timestamp = new Date(now);
+                        timestamp.setHours(timestamp.getHours() - i);
+                        const latOffset = (Math.random() - 0.5) * 0.02;
+                        const lngOffset = (Math.random() - 0.5) * 0.02;
+                        history.push({
+                            lat: vehicle.location.lat + latOffset,
+                            lng: vehicle.location.lng + lngOffset,
+                            time: timestamp,
+                            label: timestamp.toLocaleTimeString()
+                        });
+                    }
+                    vehicleLocations.value = history;
+                };
+                
+                const initGlobalMap = () => {
+                    if (globalMap) {
+                        globalMap.remove();
+                    }
+                    globalMap = L.map('globalMap').setView([20.6597, -103.3496], 12);
+                    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                        attribution: '&copy; OpenStreetMap contributors'
+                    }).addTo(globalMap);
+                    vehicles.value.forEach(vehicle => {
+                        const marker = L.marker([vehicle.location.lat, vehicle.location.lng])
+                            .addTo(globalMap)
+                            .on('click', () => viewUserVehicleDetails(vehicle));
+                        vehicleMarkers.value[vehicle.id] = marker;
+                        const pathPoints = generateRandomPath(vehicle.location, 5);
+                        L.polyline(pathPoints, {color: getRandomColor()}).addTo(globalMap);
+                    });
+                    const assignedIds = assignments.value.map(a => a.vehicleId);
+                    vehicles.value.forEach(v => {
+                        if (!assignedIds.includes(v.id)) {
+                            vehicleMarkers.value[v.id].setLatLng([20.65, -103.35]);
+                        }
+                    });
+                };
+                
+                const initVehicleDetailMap = (vehicle) => {
+                    if (vehicleDetailMap) {
+                        vehicleDetailMap.remove();
+                    }
+                    vehicleDetailMap = L.map('vehicleDetailMap')
+                        .setView([vehicle.location.lat, vehicle.location.lng], 14);
+                    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                        attribution: '&copy; OpenStreetMap contributors'
+                    }).addTo(vehicleDetailMap);
+                    L.marker([vehicle.location.lat, vehicle.location.lng])
+                      .addTo(vehicleDetailMap)
+                      .bindPopup(`<strong>${vehicle.brand} ${vehicle.model}</strong><br>Matrícula: ${vehicle.plate}`);
+                    const pathPoints = vehicleLocations.value.map(loc => [loc.lat, loc.lng]);
+                    L.polyline(pathPoints, {
+                      color: '#2c3e50',
+                      weight: 5,
+                      dashArray: '8,6',
+                      lineCap: 'round'
+                    }).addTo(vehicleDetailMap);
+                    const notifDiv = document.createElement('div');
+                    notifDiv.id = 'history-update-notif';
+                    notifDiv.style.position = 'absolute';
+                    notifDiv.style.top = '10px';
+                    notifDiv.style.right = '10px';
+                    notifDiv.style.padding = '4px';
+                    notifDiv.style.borderRadius = '4px';
+                    notifDiv.style.background = 'rgba(255,255,255,0.8)';
+                    notifDiv.style.fontSize = '0.75rem';
+                    notifDiv.style.opacity = '0';
+                    notifDiv.innerText = '↻';
+                    document.querySelector('#vehicleDetailMap').parentNode.appendChild(notifDiv);
+                };
+                
+                const refreshMap = () => {
+                    const assignedIds = assignments.value.map(a => a.vehicleId);
+                    vehicles.value.forEach(vehicle => {
+                        if (assignedIds.includes(vehicle.id)) {
+                            vehicle.location.lat += (Math.random() - 0.5) * 0.005;
+                            vehicle.location.lng += (Math.random() - 0.5) * 0.005;
+                            if (vehicleMarkers.value[vehicle.id]) {
+                                vehicleMarkers.value[vehicle.id].setLatLng([vehicle.location.lat, vehicle.location.lng]);
+                            }
+                        }
+                    });
+                    const clusterLat = 20.65, clusterLng = -103.35;
+                    const unassigned = vehicles.value.filter(v => !assignedIds.includes(v.id));
+                    unassigned.forEach(v => {
+                        if (vehicleMarkers.value[v.id]) {
+                            vehicleMarkers.value[v.id].setLatLng([clusterLat, clusterLng]);
+                        }
+                    });
+                };
+                
+                const updateVehicleLocation = () => {
+                    if (!selectedVehicle.value) return;
+                    selectedVehicle.value.location.lat += (Math.random() - 0.5) * 0.005;
+                    selectedVehicle.value.location.lng += (Math.random() - 0.5) * 0.005;
+                    const now = new Date();
+                    vehicleLocations.value.unshift({
+                      lat: selectedVehicle.value.location.lat,
+                      lng: selectedVehicle.value.location.lng,
+                      time: now,
+                      label: now.toLocaleTimeString()
+                    });
+                    const cutoff = new Date(now.getTime() - 30*60*1000);
+                    vehicleLocations.value = vehicleLocations.value.filter(pt => pt.time >= cutoff);
+                    showHistoryUpdateNotif.value = true;
+                    setTimeout(() => showHistoryUpdateNotif.value = false, 500);
+                    if (vehicleDetailMap) {
+                        vehicleDetailMap.setView([selectedVehicle.value.location.lat, selectedVehicle.value.location.lng], 14);
+                        vehicleDetailMap.eachLayer(layer => {
+                            if (layer instanceof L.Marker || layer instanceof L.Polyline) {
+                                vehicleDetailMap.removeLayer(layer);
+                            }
+                        });
+                        L.marker([selectedVehicle.value.location.lat, selectedVehicle.value.location.lng])
+                            .addTo(vehicleDetailMap)
+                            .bindPopup(`<strong>${selectedVehicle.value.brand} ${selectedVehicle.value.model}</strong><br>Matrícula: ${selectedVehicle.value.plate}`);
+                        const pathPoints = vehicleLocations.value.map(loc => [loc.lat, loc.lng]);
+                        L.polyline(pathPoints, {color: '#3B82F6'}).addTo(vehicleDetailMap);
+                    }
+                };
+                
+                const centerMapOnVehicle = (vehicle) => {
+                    if (globalMap) {
+                        globalMap.setView([vehicle.location.lat, vehicle.location.lng], 15);
+                        if (vehicleMarkers.value[vehicle.id]) {
+                            vehicleMarkers.value[vehicle.id].openPopup();
+                        }
+                    }
+                };
+                
+                // User Management
+                const openAddUserModal = () => {
+                    newUser.value = { name: '', email: '', password: '', role: 'user' };
+                    editingUser.value = false;
+                    showAddUserModal.value = true;
+                };
+                
+                const editUser = (user) => {
+                    newUser.value = { ...user };
+                    editingUser.value = true;
+                    showAddUserModal.value = true;
+                };
+                
+                const saveUser = () => {
+                    if (editingUser.value) {
+                        const index = users.value.findIndex(u => u.id === newUser.value.id);
+                        if (index !== -1) {
+                            const currentPassword = users.value[index].password;
+                            users.value[index] = { ...newUser.value, password: currentPassword };
+                        }
+                    } else {
+                        const maxId = users.value.length ? Math.max(...users.value.map(u => u.id)) : 0;
+                        users.value.push({ ...newUser.value, id: maxId + 1 });
+                    }
+                    showAddUserModal.value = false;
+                    localStorage.setItem('users', JSON.stringify(users.value));
+                };
+                
+                const deleteUser = (userId) => {
+                    if (confirm('¿Está seguro de que desea eliminar este usuario?')) {
+                        assignments.value = assignments.value.filter(a => a.userId !== userId);
+                        users.value = users.value.filter(u => u.id !== userId);
+                    }
+                };
+                
+                // Vehicle Management
+                const openAddVehicleModal = () => {
+                    newVehicle.value = { brand: '', model: '', year: 2023, plate: '', type: 'sedan', photo: '' };
+                    editingVehicle.value = false;
+                    showAddVehicleModal.value = true;
+                };
+                
+                const editVehicle = (vehicle) => {
+                    newVehicle.value = { ...vehicle };
+                    editingVehicle.value = true;
+                    showAddVehicleModal.value = true;
+                };
+                
+                const saveVehicle = () => {
+                    if (editingVehicle.value) {
+                        const idx = vehicles.value.findIndex(v => v.id === newVehicle.value.id);
+                        if (idx !== -1) {
+                          // preserve existing location…
+                          const loc = vehicles.value[idx].location;
+                          vehicles.value[idx] = { ...newVehicle.value, location: loc };
+                        }
+                    } else {
+                        const maxId = vehicles.value.length
+                              ? Math.max(...vehicles.value.map(v=>v.id))
+                              : 0;
+                        const location = { /* … generate new location … */ };
+                        vehicles.value.push({
+                          ...newVehicle.value,
+                          id: maxId+1,
+                          location
+                        });
+                    }
+
+                    // ===> Persist the chosen photo under a unique key
+                    const targetId = editingVehicle.value
+                               ? newVehicle.value.id
+                               : vehicles.value[vehicles.value.length-1].id;
+                    localStorage.setItem(
+                      `vehicle_photo_${targetId}`,
+                      newVehicle.value.photo
+                    );
+
+                    showAddVehicleModal.value = false;
+                    localStorage.setItem('vehicles', JSON.stringify(vehicles.value));
+                };
+                
+                const deleteVehicle = (vehicleId) => {
+                    if (confirm('¿Está seguro de eliminar este vehículo?')) {
+                        vehicles.value = vehicles.value.filter(v => v.id !== vehicleId);
+                        assignments.value = assignments.value.filter(a => a.vehicleId !== vehicleId);
+                        // Optionally, persist changes:
+                        // localStorage.setItem('vehicles', JSON.stringify(vehicles.value));
+                        // localStorage.setItem('assignments', JSON.stringify(assignments.value));
+                    }
+                };
+                
+                // Assignment Management
+                const openAddAssignmentModal = () => {
+                    newAssignment.value = { userId: '', vehicleId: '' };
+                    showAddAssignmentModal.value = true;
+                };
+                
+                const saveAssignment = () => {
+                    const maxId = assignments.value.length
+                      ? Math.max(...assignments.value.map(a=>a.id))
+                      : 0;
+                    assignments.value.push({
+                      id: maxId + 1,
+                      userId: newAssignment.value.userId,
+                      vehicleId: newAssignment.value.vehicleId,
+                      assignedDate: new Date().toISOString().slice(0, 10)
+                    });
+                    showAddAssignmentModal.value = false;
+                    if (activeView.value === 'map') {
+                      refreshMap();
+                    }
+                };
+                
+                const deleteAssignment = (assignmentId) => {
+                    if (confirm('¿Está seguro de que desea eliminar esta asignación?')) {
+                        assignments.value = assignments.value.filter(a => a.id !== assignmentId);
+                    }
+                };
+                
+                // Helper Functions
+                const getUserName = (userId) => {
+                    const user = users.value.find(u => u.id === userId);
+                    return user ? user.name : 'Usuario Desconocido';
+                };
+                
+                const getVehicleName = (vehicleId) => {
+                    const vehicle = vehicles.value.find(v => v.id === vehicleId);
+                    return vehicle ? `${vehicle.brand} ${vehicle.model}` : 'Vehículo Desconocido';
+                };
+                
+                const getVehiclePlate = (vehicleId) => {
+                    const vehicle = vehicles.value.find(v => v.id === vehicleId);
+                    return vehicle ? vehicle.plate : 'N/A';
+                };
+                
+                const getVehicleAssignment = (vehicleId) => {
+                    return assignments.value.find(a => a.vehicleId === vehicleId);
+                };
+                
+                const getVehicleAssignmentUser = (vehicleId) => {
+                    const assignment = getVehicleAssignment(vehicleId);
+                    if (!assignment) return 'No asignado';
+                    return getUserName(assignment.userId);
+                };
+                
+                const getNonAdminUsers = () => {
+                    return users.value.filter(u => u.role !== 'admin');
+                };
+                
+                const getUnassignedVehicles = () => {
+                    const assignedVehicleIds = assignments.value.map(a => a.vehicleId);
+                    return vehicles.value.filter(v => !assignedVehicleIds.includes(v.id));
+                };
+                
+                function generateRandomPath(startPoint, numPoints) {
+                  const points = [];
+                  const deltaLat = 0.0005;
+                  const deltaLng = 0.0005;
+                  let lat = startPoint.lat, lng = startPoint.lng;
+                  for (let i = 0; i <= numPoints; i++) {
+                    points.push([lat, lng]);
+                    lat += (Math.random() * deltaLat * 2) - deltaLat;
+                    lng += (Math.random() * deltaLng * 2) - deltaLng;
+                  }
+                  return points;
+                }
+                
+                const getRandomColor = () => {
+                    const colors = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899'];
+                    return colors[Math.floor(Math.random() * colors.length)];
+                };
+                
+                onMounted(() => {
+                    // ===> Load each vehicle’s saved photo (if any) from localStorage
+                    vehicles.value.forEach(v => {
+                      const key = `vehicle_photo_${v.id}`;
+                      const stored = localStorage.getItem(key);
+                      if (stored) {
+                        v.photo = stored;
+                      }
+                    });
+
+                    const token = localStorage.getItem('authToken');
+                    const storedUser = localStorage.getItem('currentUser');
+                    
+                    if (token && storedUser) {
+                        try {
+                            currentUser.value = JSON.parse(storedUser);
+                            isAuthenticated.value = true;
+                            if (currentUser.value.role === 'admin') {
+                                setActiveView('dashboard');
+                            }
+                        } catch (e) {
+                            console.error('Error parsing stored user', e);
+                            logout();
+                        }
+                    }
+                    
+                    document.addEventListener('viewUserVehicleDetails', (event) => {
+                        const vehicleId = event.detail;
+                        const vehicle = vehicles.value.find(v => v.id === vehicleId);
+                        if (vehicle) {
+                            viewUserVehicleDetails(vehicle);
+                        }
+                    });
+                    
+                    // 1) load each vehicle’s saved photo (if any) from localStorage
+                    vehicles.value.forEach(v => {
+                        const key = `vehicle_photo_${v.id}`;
+                        const stored = localStorage.getItem(key);
+                        if (stored) {
+                            v.photo = stored;
+                        }
+                        // else leave v.photo as originally defined
+                    });
+                    
+                    const storedUsers = localStorage.getItem('users');
+                    if (storedUsers) users.value = JSON.parse(storedUsers);
+
+                    const storedVehicles = localStorage.getItem('vehicles');
+                    if (storedVehicles) vehicles.value = JSON.parse(storedVehicles);
+
+                    const storedAssignments = localStorage.getItem('assignments');
+                    if (storedAssignments) {
+                      assignments.value = JSON.parse(storedAssignments);
+                    }
+                    
+                    watch(activeView, val => {
+                      if (val==='dashboard') {
+                        setTimeout(() => {
+                          if (!chartByBrand) initCharts();
+                          else updateCharts();
+                        }, 100);
+                      }
+                    });
+                    
+                    watch([vehicles, assignments], () => {
+                      if (chartByBrand) updateCharts();
+                    }, { deep:true });
+                });
+                
+                function assignmentBadgeText(vehicleId) {
+                  const a = assignments.value.find(x => x.vehicleId === vehicleId);
+                  return a
+                    ? `Asignado a ${getUserName(a.userId)}`
+                    : 'Disponible';
+                }
+                
+                function assignBadgeClass(vehicleId) {
+                  const a = assignments.value.find(x => x.vehicleId === vehicleId);
+                  return a
+                    ? 'bg-red-100 text-red-800'
+                    : 'bg-green-100 text-green-800';
+                }
+                
+                const selectedAssignment = ref(null);
+                
+                const isMapRefreshing = ref(false);
+                
+                function refreshVehicleMap() {
+                  isMapRefreshing.value = true;
+                  setTimeout(() => {
+                    updateVehicleLocation();
+                    isMapRefreshing.value = false;
+                  }, 1000);
+                }
+                
+                // New reactive state
+                const fileError = ref('');
+                const imagePreview = ref('');
+                function onVehicleFileChange(event) {
+                  fileError.value = '';
+                  const file = event.target.files?.[0];
+                  if (!file) return;
+                  if (/\.gif$/i.test(file.name) || file.type === 'image/gif') {
+                    fileError.value = 'GIF no soportado. Por favor use otro formato.';
+                    return;
+                  }
+                  const reader = new FileReader();
+                  reader.onload = e => {
+                    imagePreview.value = e.target.result;
+                    newVehicle.value.photo = e.target.result;
+                  };
+                  reader.readAsDataURL(file);
+                }
+                
+                function onVehicleUrlBlur() {
+                  urlError.value = '';
+                  const url = newVehicle.photoUrl.trim();
+                  if (!url) return;
+                  if (/\.gif$/i.test(url)) {
+                    urlError.value = 'GIF no soportado. Por favor use otro formato de imagen.';
+                    return;
+                  }
+                  imagePreview.value = url;
+                  newVehicle.photo = url;
+                }
+                
+                function toggleEditDetails() {
+                  isEditingDetails.value = !isEditingDetails.value;
+                }
+                
+                function saveVehicleDetails() {
+                  isEditingDetails.value = false;
+                  showVehicleDetailsModal.value = false;
+                }
+                
+                function toggleEditImage() {
+                  isEditingImage.value = !isEditingImage.value;
+                  if (isEditingImage.value) {
+                    imagePreview.value = selectedVehicle.value.photo;
+                  }
+                }
+                
+                const isSavingImage = ref(false);
+                async function confirmVehicleImage() {
+                  if (!imagePreview.value || fileError.value) return;
+                  try {
+                    isSavingImage.value = true;
+                    await new Promise(res => setTimeout(res, 1000));
+                    selectedVehicle.value.photo = imagePreview.value;
+                    localStorage.setItem(
+                      `vehicle_photo_${selectedVehicle.value.id}`,
+                      imagePreview.value
+                    );
+                  } finally {
+                    isSavingImage.value = false;
+                    isEditingImage.value = false;
+                  }
+                }
+                
+                function confirmAssignment() {
+                  if (!selectedAssignUser.value || !selectedAssignVehicle.value) return;
+                  assignments.value.push({
+                    id: Math.max(0, ...assignments.value.map(a=>a.id)) + 1,
+                    userId: selectedAssignUser.value.id,
+                    vehicleId: selectedAssignVehicle.value.id,
+                    assignedDate: new Date().toISOString().slice(0,10)
+                  });
+                  localStorage.setItem(
+                    'assignments',
+                    JSON.stringify(assignments.value)
+                  );
+                  showAddAssignmentModal.value = false;
+                  selectedAssignUser.value = null;
+                  selectedAssignVehicle.value = null;
+                }
+                
+                function openUserDetailModal(userId) {
+                  detailUser.value = users.value.find(u=>u.id===userId);
+                  showUserDetailModal.value = true;
+                }
+                
+                function getUserPhoto(userId) {
+                  const u = users.value.find(x=>x.id===userId);
+                  return u?.photoUrl || defaultUserPhoto;
+                }
+                function getVehiclePhoto(vehicleId) {
+                  const v = vehicles.value.find(x=>x.id===vehicleId);
+                  return v?.photo;
+                }
+                
+                const dragSrcIndex = ref(null);
+                
+                function onDragStart(event, index) {
+                  dragSrcIndex.value = index;
+                  event.dataTransfer.effectAllowed = 'move';
+                }
+                
+                function onDragEnter(event, index) {
+                }
+                
+                function onDrop(event, destIndex) {
+                  const src = dragSrcIndex.value;
+                  if (src === null || src === destIndex) return;
+                  const moved = assignments.value.splice(src, 1)[0];
+                  assignments.value.splice(destIndex, 0, moved);
+                  dragSrcIndex.value = null;
+                  saveAssignmentsOrder();
+                }
+                
+                function saveAssignmentsOrder() {
+                  console.log('Assignments reordered:', assignments.value);
+                }
+                
+                const getUserEmail = (userId) => {
+                  const u = users.value.find(x => x.id === userId);
+                  return u ? u.email : '';
+                };
+                
+                const activityLog = ref([]);
+                function refreshActivityLog() {
+                }
+                
+                const brandError = ref('');
+                const modelError = ref('');
+                
+                let chartByBrand, chartAvailability, chartAssignmentsDaily;
+                
+                function computeByBrandData() {
+                  const counts = {};
+                  vehicles.value.forEach(v => {
+                    counts[v.brand] = (counts[v.brand]||0)+1;
+                  });
+                  return {
+                    labels: Object.keys(counts),
+                    datasets: [{
+                      data: Object.values(counts),
+                      backgroundColor: Object.keys(counts).map((_,i)=>Chart.helpers.color(`hsl(${i*360/Object.keys(counts).length},60%,60%)`).rgbString())
+                    }]
+                  };
+                }
+                
+                function computeAvailabilityData() {
+                  const total = vehicles.value.length;
+                  const assigned = assignments.value.length;
+                  return {
+                    labels: ['Disponibles','Ocupados'],
+                    datasets: [{
+                      data: [ total - assigned, assigned ],
+                      backgroundColor: ['#10B981','#EF4444']
+                    }]
+                  };
+                }
+                
+                function computeAssignmentsDailyData() {
+                  const byDay = {};
+                  assignments.value.forEach(a => {
+                    const day = a.assignedDate;
+                    byDay[day] = (byDay[day]||0)+1;
+                  });
+                  const labels = Object.keys(byDay).sort();
+                  return {
+                    labels,
+                    datasets:[{
+                      label:'Asignaciones',
+                      data: labels.map(d=>byDay[d]),
+                      backgroundColor:'#3B82F6'
+                    }]
+                  };
+                }
+                
+                function initCharts() {
+                  const ctx1 = document.getElementById('chartByBrand').getContext('2d');
+                  chartByBrand = new Chart(ctx1, {
+                    type:'pie',
+                    data: computeByBrandData(),
+                    options:{ responsive:true, plugins:{ title:{ display:true, text:'Distribución de Vehículos por Marca' } } }
+                  });
+                  const ctx2 = document.getElementById('chartAvailability').getContext('2d');
+                  chartAvailability = new Chart(ctx2, {
+                    type:'doughnut',
+                    data: computeAvailabilityData(),
+                    options:{ responsive:true, plugins:{ title:{ display:true, text:'Disponibilidad de Vehículos' } } }
+                  });
+                  const ctx3 = document.getElementById('chartAssignmentsDaily').getContext('2d');
+                  chartAssignmentsDaily = new Chart(ctx3, {
+                    type:'bar',
+                    data: computeAssignmentsDailyData(),
+                    options:{ responsive:true, plugins:{ title:{ display:true, text:'Actividad de Asignaciones Diaria' } },
+                              scales:{ x:{title:{display:true,text:'Día'}}, y:{title:{display:true,text:'#Asignaciones'}, beginAtZero:true} } }
+                  });
+                }
+                
+                function updateCharts() {
+                  chartByBrand.data = computeByBrandData();
+                  chartByBrand.update();
+                  chartAvailability.data = computeAvailabilityData();
+                  chartAvailability.update();
+                  chartAssignmentsDaily.data = computeAssignmentsDailyData();
+                  chartAssignmentsDaily.update();
+                }
+                
+                // Whenever a new event happens:
+                const newNote = { id: Date.now(), message: 'Vehicle 42 was deleted' };
+                notifications.value.push(newNote);
+                const removeId = newNote.id;
+                // Auto-remove this notification after 5 seconds
+                setTimeout(() => {
+                  notifications.value = notifications.value.filter(n => n.id !== removeId);
+                }, 5000);
+                
+                return {
+                    isAuthenticated,
+                    isLoading,
+                    loginError,
+                    credentials,
+                    currentUser,
+                    login,
+                    logout,
+                    
+                    activeView,
+                    showVehicleDetailsModal,
+                    showAddUserModal,
+                    showAddVehicleModal,
+                    showAddAssignmentModal,
+                    selectedVehicle,
+                    vehicleLocations,
+                    setActiveView,
+                    
+                    users,
+                    vehicles,
+                    assignments,
+                    
+                    newUser,
+                    newVehicle,
+                    newAssignment,
+                    editingUser,
+                    editingVehicle,
+                    
+                    getUserVehicleCount,
+                    getUserVehicles,
+                    openAddUserModal,
+                    editUser,
+                    saveUser,
+                    deleteUser,
+                    
+                    viewUserVehicleDetails,
+                    viewVehicleLocation,
+                    openAddVehicleModal,
+                    editVehicle,
+                    saveVehicle,
+                    deleteVehicle,
+                    
+                    openAddAssignmentModal,
+                    saveAssignment,
+                    deleteAssignment,
+                    
+                    refreshMap,
+                    updateVehicleLocation,
+                    centerMapOnVehicle,
+                    
+                    getUserName,
+                    getVehicleName,
+                    getVehiclePlate,
+                    getVehicleAssignment,
+                    getVehicleAssignmentUser,
+                    getNonAdminUsers,
+                    getUnassignedVehicles,
+                    assignmentBadgeText,
+                    assignBadgeClass,
+                    
+                    isMapRefreshing,
+                    refreshVehicleMap,
+                    
+                    fileError,
+                    imagePreview,
+                    onVehicleFileChange,
+                    onVehicleUrlBlur,
+                    
+                    isEditingDetails,
+                    isEditingImage,
+                    toggleEditDetails,
+                    toggleEditImage,
+                    saveVehicleDetails,
+                    showHistoryUpdateNotif,
+                    confirmVehicleImage,
+                    isSavingImage,
+                    showAssignModal,
+                    selectedAssignUser,
+                    selectedAssignVehicle,
+                    confirmAssignment,
+                    defaultUserPhoto,
+                    showUserDetailModal,
+                    detailUser,
+                    openUserDetailModal,
+                    getUserPhoto,
+                    getVehiclePhoto,
+                    
+                    dragSrcIndex,
+                    onDragStart,
+                    onDragEnter,
+                    onDrop,
+                    saveAssignmentsOrder,
+                    
+                    getUserEmail,
+                    
+                    brandError,
+                    modelError,
+                    
+                    activityLog,
+                    refreshActivityLog,
+                    
+                    notifications,
+                };
+            }
+        });
+        
+        app.mount('#app');
+    </script>
+
+</body>
+</html>
