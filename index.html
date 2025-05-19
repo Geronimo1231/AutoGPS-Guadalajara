@@ -1825,7 +1825,10 @@
                 const deleteUser = (userId) => {
                     if (confirm('¿Está seguro de que desea eliminar este usuario?')) {
                         assignments.value = assignments.value.filter(a => a.userId !== userId);
-                        users.value = users.value.filter(u => u.id !== userId);
+                        users.value       = users.value.filter(u => u.id   !== userId);
+                        // persist changes
+                        localStorage.setItem('users', JSON.stringify(users.value));
+                        localStorage.setItem('assignments', JSON.stringify(assignments.value));
                     }
                 };
                 
@@ -1877,11 +1880,13 @@
                 
                 const deleteVehicle = (vehicleId) => {
                     if (confirm('¿Está seguro de eliminar este vehículo?')) {
-                        vehicles.value = vehicles.value.filter(v => v.id !== vehicleId);
+                        vehicles.value    = vehicles.value.filter(v => v.id !== vehicleId);
                         assignments.value = assignments.value.filter(a => a.vehicleId !== vehicleId);
-                        // Optionally, persist changes:
-                        // localStorage.setItem('vehicles', JSON.stringify(vehicles.value));
-                        // localStorage.setItem('assignments', JSON.stringify(assignments.value));
+                        // persist changes
+                        localStorage.setItem('vehicles', JSON.stringify(vehicles.value));
+                        localStorage.setItem('assignments', JSON.stringify(assignments.value));
+                        // also remove stored photo if any
+                        localStorage.removeItem(`vehicle_photo_${vehicleId}`);
                     }
                 };
                 
@@ -1910,6 +1915,8 @@
                 const deleteAssignment = (assignmentId) => {
                     if (confirm('¿Está seguro de que desea eliminar esta asignación?')) {
                         assignments.value = assignments.value.filter(a => a.id !== assignmentId);
+                        // persist
+                        localStorage.setItem('assignments', JSON.stringify(assignments.value));
                     }
                 };
                 
@@ -2016,9 +2023,9 @@
                     const storedVehicles = localStorage.getItem('vehicles');
                     if (storedVehicles) vehicles.value = JSON.parse(storedVehicles);
 
-                    const storedAssignments = localStorage.getItem('assignments');
-                    if (storedAssignments) {
-                      assignments.value = JSON.parse(storedAssignments);
+                    const storedAssigns = localStorage.getItem('assignments');
+                    if (storedAssigns) {
+                      assignments.value = JSON.parse(storedAssigns);
                     }
                     
                     watch(activeView, val => {
@@ -2115,10 +2122,13 @@
                     isSavingImage.value = true;
                     await new Promise(res => setTimeout(res, 1000));
                     selectedVehicle.value.photo = imagePreview.value;
+                    // store image under unique key
                     localStorage.setItem(
                       `vehicle_photo_${selectedVehicle.value.id}`,
                       imagePreview.value
                     );
+                    // persist updated vehicles list (so reload reflects new photo)
+                    localStorage.setItem('vehicles', JSON.stringify(vehicles.value));
                   } finally {
                     isSavingImage.value = false;
                     isEditingImage.value = false;
