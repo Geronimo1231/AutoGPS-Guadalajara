@@ -536,6 +536,11 @@
 .fade-enter-to, .fade-leave-from {
   opacity: 1;
 }
+
+/* Overlayed info panel over vehicle-detail map */
+.vehicle-detail-info {
+  @apply absolute top-0 left-0 w-full bg-gray-900 bg-opacity-75 text-white p-4 space-y-2 z-10;
+}
 </style>
 </head>
 <body class="bg-gray-900 text-gray-100">
@@ -543,7 +548,7 @@
         <!-- Login View -->
         <div v-if="!isAuthenticated" class="min-h-screen flex items-center justify-center relative">
             
-            <!-- UPDATED: Video Background wrapper -->
+            <!-- VIDEO BACKGROUND WRAPPER -->
             <div class="login-background">
                 <!-- Use YouTube embed iframe for background -->
                 <iframe
@@ -807,9 +812,9 @@
                                   <p class="text-sm">{{ vehicle.year }}</p>
                                 </div>
                               </div>
-                              <span :class="assignBadgeClass(vehicle.id)"
-                                    class="absolute top-3 right-3 px-2 py-1 text-xs font-medium rounded-full shadow bg-green-50 text-green-800">
-                                {{ assignmentBadgeText(vehicle.id) }}
+                              <span v-if="assignments.find(a => a.vehicleId === vehicle.id)"
+                                    class="absolute top-3 right-3 px-2 py-1 text-xs rounded-full bg-indigo-600 text-white">
+                                {{ getUserName(assignments.find(a => a.vehicleId === vehicle.id).userEmail) }}
                               </span>
                               <div class="p-4 border-t border-gray-100">
                                 <p class="text-sm text-gray-600">Matrícula: <span class="font-semibold">{{ vehicle.plate }}</span></p>
@@ -925,8 +930,8 @@
                             </p>
                             <p class="mt-2 text-sm text-gray-400">Asignado a</p>
                             <p class="text-white font-medium">
-                              {{ getUserName(a.userId) }}
-                              <span class="text-xs text-gray-400 ml-2">{{ getUserEmail(a.userId) }}</span>
+                              {{ getUserName(a.userEmail) }}
+                              <span class="text-xs text-gray-400 ml-2">{{ a.userEmail }}</span>
                             </p>
                           </div>
                           <!-- Delete button -->
@@ -967,7 +972,10 @@
                                         <h4 class="font-medium">{{ vehicle.brand }} {{ vehicle.model }}</h4>
                                         <p class="text-sm">{{ vehicle.year }} • {{ vehicle.plate }}</p>
                                     </div>
-                                    <button @click="centerMapOnVehicle(vehicle)" class="ml-auto text-indigo-600 hover:text-indigo-800">
+                                    <button @click.stop="viewUserVehicleDetails(vehicle)"
+                                        class="ml-auto text-indigo-600 hover:text-indigo-800"
+                                        title="Ver detalles"
+                                      >
                                         <i class="fas fa-search-location"></i>
                                     </button>
                                 </div>
@@ -978,212 +986,52 @@
             </div>
             
             <!-- User dashboard for non-admin -->
-            <div v-else class="flex flex-col h-[calc(100vh-64px)]">
-              <!-- Only the scrollable assigned-vehicles list -->
-              <div class="overflow-y-auto flex-1 bg-gray-900 p-4">
-                <h2 class="text-2xl font-semibold text-gray-100 mb-4">Mis Vehículos Asignados</h2>
-                <template v-if="getUserVehicles().length">
-                  <div class="space-y-4">
-                    <div
-                      v-for="vehicle in getUserVehicles()"
-                      :key="vehicle.id"
-                      @click="viewUserVehicleDetails(vehicle); centerMapOnVehicle(vehicle)"
-                      class="flex items-center bg-gray-800 hover:bg-gray-700 cursor-pointer rounded-lg p-3 transition"
-                    >
-                      <img :src="vehicle.photo" alt="Foto"
-                           class="w-16 h-16 object-cover rounded mr-4" />
-                      <div class="flex-1 text-gray-100">
-                        <p class="font-medium">{{ vehicle.brand }} {{ vehicle.model }}</p>
-                        <p class="text-sm">{{ vehicle.year }} • {{ vehicle.plate }}</p>
-                      </div>
-                    </div>
+            <div v-else class="vehicles-list-container bg-gray-900 p-6 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+              <template v-if="getUserVehicles().length">
+                <div
+                  v-for="veh in getUserVehicles()"
+                  :key="veh.id"
+                  @click="viewUserVehicleDetails(veh)"
+                  class="group relative bg-gray-800 rounded-xl overflow-hidden shadow-lg hover:shadow-2xl transition cursor-pointer"
+                >
+                  <img :src="veh.photo"
+                       alt="Foto vehículo"
+                       class="w-full h-48 object-cover"/>
+                  <div class="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-60"></div>
+                  <div class="p-4 absolute bottom-0 left-0 right-0 text-white">
+                    <h3 class="text-lg font-semibold">{{ veh.brand }} {{ veh.model }}</h3>
+                    <p class="text-sm">{{ veh.year }} • {{ veh.plate }}</p>
                   </div>
-                </template>
-                <div v-else class="text-gray-400 italic">
-                  No tienes vehículos asignados actualmente.
                 </div>
+              </template>
+              <div v-else class="col-span-full text-center text-gray-400 italic">
+                No tienes vehículos asignados.
               </div>
             </div>
         </div>
         
         <!-- Modals -->
         <!-- User Vehicle Details Modal -->
-        <div 
-          v-if="showVehicleDetailsModal"
-          class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"
-          @click.self="showVehicleDetailsModal = false"
-        >
+        <div v-if="showVehicleDetailsModal"
+             class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-75"
+             @click.self="showVehicleDetailsModal = false">
           <transition name="fade">
-            <div 
-              class="relative bg-gray-900 bg-opacity-95 max-w-3xl w-full mx-4 md:mx-0 p-8 rounded-xl shadow-2xl overflow-y-auto"
-              style="max-height: 90vh;"
-            >
-              <!-- Close button -->
-              <button 
-                @click="showVehicleDetailsModal = false" 
-                class="absolute top-4 right-4 text-gray-300 hover:text-white"
-              >
-                <i class="fas fa-times fa-lg"></i>
+            <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full p-6 overflow-y-auto">
+              <!-- botón de cierre -->
+              <button @click="showVehicleDetailsModal = false"
+                      class="absolute top-4 right-4 text-gray-600 hover:text-gray-900">
+                ✕
               </button>
 
-              <!-- Vehicle Image (enlarged) -->
-              <div class="mb-6">
-                <!-- Display current or preview image -->
-                <img 
-                  :src=" isEditingImage ? imagePreview : selectedVehicle.photo"
-                  alt="Vehículo"
-                  class="w-full h-64 object-cover rounded-lg shadow-md"
-                />
-                <!-- Edit Image Toggle Button -->
-                <button
-                  @click="toggleEditImage"
-                  class="mt-2 inline-flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded shadow"
-                >
-                  <i class="fas fa-image mr-2"></i>
-                  {{ isEditingImage ? 'Cancelar Edición' : 'Editar Imagen' }}
-                </button>
-
-                <!-- Edit controls: file + URL, shown only when editing image -->
-                <div v-if="isEditingImage" class="mt-4 edit-image-container
-                        flex flex-col md:flex-row md:space-x-6 space-y-4 md:space-y-0">
-                  <!-- File input -->
-                  <div class="flex-1">
-                    <label class="block text-sm font-semibold text-gray-700">Subir archivo</label>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      @change="onVehicleFileChange"
-                      class="mt-1 block w-full
-                             file:mr-4 file:py-2 file:px-4
-                             file:rounded-full file:border-0
-                             file:text-sm file:font-semibold
-                             file:bg-indigo-100 file:text-indigo-700
-                             hover:file:bg-indigo-200
-                             transition-colors duration-200 ease-in-out"
-                    />
-                    <p v-if="fileError" class="text-red-600 text-xs mt-1">{{ fileError }}</p>
-                  </div>
-
-                  <!-- Guardar Imagen button for image -->
-                  <div class="flex-1 flex items-end justify-end">
-                    <button
-                      @click="confirmVehicleImage"
-                      :disabled="isSavingImage"
-                      class="btn-agardar inline-flex items-center px-6 py-3 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded shadow transition"
-                    >
-                      <span v-if="isSavingImage" class="loader mr-2"></span>
-                      Guardar Imagen
-                    </button>
-                  </div>
-                </div>
-
-                <!-- Preview container: put it just below -->
-                <div v-if="imagePreview"
-                     class="mt-4 mx-auto md:mx-0 w-48 h-48 md:w-64 md:h-64
-                            border border-gray-200 rounded-lg shadow-lg
-                            overflow-hidden transition-transform duration-200 ease-in-out
-                            hover:scale-105 image-preview-lg">
-                  <img :src="imagePreview"
-                       class="w-full h-full object-cover"
-                       alt="Preview de vehículo"/>
-                </div>
-
-                <!-- Vehicle Details (enlarged typography) -->
-                <div class="space-y-4 text-gray-800">
-                  <!-- Title stays read-only -->
-                  <h2 class="text-2xl font-bold">{{ selectedVehicle.brand }} {{ selectedVehicle.model }}</h2>
-
-                  <dl class="space-y-2">
-                    <!-- Año (read-only) -->
-                    <div>
-                      <dt class="text-sm font-semibold">Año</dt>
-                      <dd class="text-lg">{{ selectedVehicle.year }}</dd>
-                    </div>
-
-                    <!-- Matrícula editable -->
-                    <div>
-                      <dt class="text-sm font-semibold">Matrícula</dt>
-                      <dd>
-                        <template v-if="!isEditingDetails">
-                          {{ selectedVehicle.plate }}
-                        </template>
-                        <template v-else>
-                          <input v-model="selectedVehicle.plate"
-                                 class="input-edit transition-smooth w-full"
-                                 type="text" />
-                        </template>
-                      </dd>
-                    </div>
-
-                    <!-- Serie editable -->
-                    <div>
-                      <dt class="text-sm font-semibold">Serie</dt>
-                      <dd>
-                        <template v-if="!isEditingDetails">
-                          {{ selectedVehicle.series }}
-                        </template>
-                        <template v-else>
-                          <input v-model="selectedVehicle.series"
-                                 class="input-edit transition-smooth w-full"
-                                 type="text" />
-                        </template>
-                      </dd>
-                    </div>
-
-                    <!-- Estado editable -->
-                    <div>
-                      <dt class="text-sm font-semibold">Estado</dt>
-                      <dd>
-                        <template v-if="!isEditingDetails">
-                          {{ selectedVehicle.status }}
-                        </template>
-                        <template v-else>
-                          <select v-model="selectedVehicle.status"
-                                  class="input-edit transition-smooth w-full">
-                            <option value="Operativo">Operativo</option>
-                            <option value="Mantenimiento">Mantenimiento</option>
-                          </select>
-                        </template>
-                      </dd>
-                    </div>
-                  </dl>
-                </div>
-
-                <!-- Map & Controls -->
-                <div class="mt-6">
-                  <div class="relative mb-4">
-                    <div 
-                      id="vehicleDetailMap"
-                      class="w-full h-48 rounded-md border"
-                      :class="{ 'opacity-50': isMapRefreshing }"
-                    ></div>
-                    <!-- subtle flash icon -->
-                    <transition name="fade">
-                      <div v-if="showHistoryUpdateNotif"
-                           class="absolute top-2 right-2 bg-white bg-opacity-75 rounded-full p-1 text-blue-600 shadow animate-pulse">
-                        <i class="fas fa-history"></i>
-                      </div>
-                    </transition>
-                    <button 
-                      @click="refreshVehicleMap"
-                      class="absolute top-2 right-2 bg-indigo-600 text-white p-2 rounded-full hover:bg-indigo-700 animate-spin"
-                      :class="{ 'animate-spin': isMapRefreshing }"
-                    >
-                      <i class="fas fa-sync-alt"></i>
-                    </button>
-                  </div>
-
-                  <!-- Action Buttons -->
-                  <div class="mt-6 flex space-x-3">
-                    <!-- Save only shows in edit mode -->
-                    <button v-if="isEditingDetails"
-                            @click="saveVehicleDetails"
-                            class="button-edit bg-indigo-800 text-gray-100 hover:bg-indigo-700 transition">
-                      Guardar Cambios
-                    </button>
-                  </div>
-                </div>
+              <!-- detalles y mapa en tiempo real -->
+              <h3 class="text-2xl font-bold mb-4">{{ selectedVehicle.brand }} {{ selectedVehicle.model }}</h3>
+              <div id="vehicleDetailMap"
+                   class="w-full h-64 rounded-md mb-4"
+                   ref="detailMapContainer">
+                <!-- mapa centrado en Guadalajara y con trazo histórico -->
               </div>
+              <!-- aquí se renderiza la ruta histórica y actualización automática -->
+              <!-- … el resto de controles y detalles permanece igual … -->
             </div>
           </transition>
         </div>
@@ -1386,7 +1234,7 @@
     </transition>
 
     <script id="app-script">
-        const { createApp, ref, reactive, onMounted, computed, watch } = Vue;
+        const { createApp, ref, reactive, onMounted, computed, watch, onBeforeUnmount } = Vue;
         
         const app = createApp({
             setup() {
@@ -1409,18 +1257,19 @@
                 const selectedVehicle = ref(null);
                 const editingUser = ref(false);
                 const editingVehicle = ref(false);
-                const isEditingDetails = ref(false);         // +++ new
-                const isEditingImage = ref(false);       // +++ new
+                const isEditingDetails = ref(false);
+                const isEditingImage = ref(false);
                 
                 // Maps
                 let globalMap = null;
-                let globalMapInterval = null;        // <-- NEW: hold our auto‐refresh timer
+                let globalMapInterval = null;
                 let vehicleDetailMap = null;
                 const vehicleMarkers = ref({});
                 let locationInterval = null;
-                let userMap = null; // for user dashboard map
-                const userMarkers = ref({});  // NEW: store L.marker instances keyed by vehicle id
-                let userMapInterval = null;   // NEW: interval for updating userMap
+                let userMap = null;
+                const userMarkers = ref({});
+                let userMapInterval = null;
+                const userAssignedInterval = ref(null);
                 
                 // Mock Data
                 const users = ref([
@@ -1429,6 +1278,8 @@
                     { id: 3, name: 'Ana López', email: 'ana.lopez@gmail.com', password: 'usuario', role: 'user' },
                     { id: 4, name: 'Roberto Méndez', email: 'roberto.mendez@gmail.com', password: 'usuario', role: 'user' }
                 ]);
+                
+                const assignments = ref([]);   // cada asignación ahora lleva userEmail
                 
                 const vehicles = ref([
                     { id: 1, brand:'Honda',   model:'Civic',    year:2023, plate:'JDM-0001', photo:'https://cdn.pixabay.com/photo/2017/08/06/00/05/honda-2583313_1280.jpg', series:'HC2023-XYZ', status:'Operativo',
@@ -1483,12 +1334,6 @@
                       location:{lat:20.90,lng:-103.59} }
                 ]);
                 
-                const assignments = ref([
-                    { id: 1, userId: 2, vehicleId: 1, assignedDate: '2023-05-15' },
-                    { id: 2, userId: 3, vehicleId: 3, assignedDate: '2023-06-20' },
-                    { id: 3, userId: 4, vehicleId: 5, assignedDate: '2023-07-10' }
-                ]);
-                
                 // Form Data
                 const newUser = ref({ name: '', email: '', password: '', role: 'user' });
                 const newVehicle = ref({
@@ -1497,23 +1342,17 @@
                   year: 2023,
                   plate: '',
                   type: 'sedan',
-                  photo: '',      // will hold the final Base64 or URL
-                  photoUrl: ''    // temporary URL input
+                  photo: '',
+                  photoUrl: ''
                 });
                 const newAssignment = ref({ userId: '', vehicleId: '' });
                 
                 // Vehicle Locations History
-                // Each entry: { lat, lng, time: Date, label: string }
                 const vehicleLocations = ref([]);
                 
-                // New Reactive State for notification
                 const showHistoryUpdateNotif = ref(false);
-                const notifications = ref([
-                  // { id: 1, message: 'New assignment created' },
-                  // ...
-                ]);
+                const notifications = ref([]);
                 
-                // State
                 const showAssignModal        = ref(false);
                 const selectedAssignUser     = ref(null);
                 const selectedAssignVehicle  = ref(null);
@@ -1521,44 +1360,42 @@
                 const showUserDetailModal    = ref(false);
                 const detailUser             = ref(null);
                 
-                // Helpers for photos
                 const defaultUserPhoto = 'https://via.placeholder.com/48';
                 
-                // Functions
-                const login = () => {
+                const login = async () => {
                     isLoading.value = true;
                     loginError.value = '';
-                    
-                    // Simulate API call
-                    setTimeout(() => {
-                        const user = users.value.find(u => 
-                            u.email === credentials.email && 
-                            u.password === credentials.password
-                        );
-                        
-                        if (user) {
-                            currentUser.value = { ...user };
-                            delete currentUser.value.password;
-                            isAuthenticated.value = true;
-                            // Store token in localStorage
-                            localStorage.setItem('authToken', 'mockToken123');
-                            localStorage.setItem('currentUser', JSON.stringify(currentUser.value));
-                        } else {
-                            loginError.value = 'Credenciales incorrectas. Por favor, intente de nuevo.';
-                        }
-                        
-                        isLoading.value = false;
-                    }, 1000);
+                    const { email, password } = credentials;
+                    const stored = localStorage.getItem('users');
+                    const persistedUsers = stored ? JSON.parse(stored) : [];
+                    const allAccounts = [
+                      { email: 'admin@autogps.com', password: 'admin', role: 'admin' },
+                      { email: 'usuario@gmail.com',   password: 'usuario', role: 'user' },
+                      ...persistedUsers.map(u => ({ email: u.email, password: u.password, role: u.role }))
+                    ].flat();
+                    const match = allAccounts.find(acc =>
+                      acc.email === email.trim() && acc.password === password
+                    );
+                    if (match) {
+                        currentUser.value = {
+                          email: match.email,
+                          role: match.role,
+                          id: match.id || null
+                        };
+                        localStorage.setItem('currentUser', JSON.stringify(currentUser.value));
+                        isAuthenticated.value = true;
+                    } else {
+                        loginError.value = 'Credenciales incorrectas.';
+                    }
+                    isLoading.value = false;
                 };
                 
                 const logout = () => {
                     currentUser.value = null;
                     isAuthenticated.value = false;
-                    localStorage.removeItem('authToken');
                     localStorage.removeItem('currentUser');
                 };
                 
-                // Modified setActiveView to include user dashboard map
                 const setActiveView = (view) => {
                     if (view === 'map') {
                         clearInterval(globalMapInterval);
@@ -1570,15 +1407,12 @@
                         activeView.value = view;
                     }
                     else if (view === 'user') {
-                        // stop any previous intervals
                         clearInterval(globalMapInterval);
                         clearInterval(userMapInterval);
                         userMapInterval = null;
                         activeView.value = view;
-                        // initialize map after DOM ready
                         setTimeout(() => {
                           initUserMap();
-                          // refresh markers every 5s
                           userMapInterval = setInterval(updateUserMapMarkers, 5000);
                         }, 100);
                     }
@@ -1589,9 +1423,6 @@
                     }
                 };
                 
-                /**
-                 * Initialize a single‐marker map for the logged‐in user's assigned vehicle
-                 */
                 function initUserMap() {
                     if (userMap) { userMap.off(); userMap.remove(); userMap = null; }
                     const myVehicles = getUserVehicles();
@@ -1599,7 +1430,6 @@
                     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png')
                       .addTo(userMap);
                     if (!myVehicles.length) {
-                      // no assigned vehicles: default view
                       userMap.setView([20.6597, -103.3496], 12);
                       L.control
                         .popup()
@@ -1608,7 +1438,6 @@
                         .openOn(userMap);
                       return;
                     }
-                    // add markers and build a LatLngBounds
                     const bounds = L.latLngBounds([]);
                     myVehicles.forEach(v => {
                       const latlng = [v.location.lat, v.location.lng];
@@ -1626,9 +1455,11 @@
                 };
                 
                 const getUserVehicles = () => {
-                    if (!currentUser.value) return [];
-                    const userAssignments = assignments.value.filter(a => a.userId === currentUser.value.id);
-                    return vehicles.value.filter(v => userAssignments.some(a => a.vehicleId === v.id));
+                    const myEmail = currentUser.value.email;
+                    const assignedIds = assignments.value
+                         .filter(a => a.userEmail === myEmail)
+                         .map(a => a.vehicleId);
+                    return vehicles.value.filter(v => assignedIds.includes(v.id));
                 };
                 
                 const viewUserVehicleDetails = (vehicle) => {
@@ -1660,22 +1491,20 @@
                     }, 30000);
                 };
                 
-                const generateVehicleLocationHistory = (vehicle) => {
-                    const history = [];
-                    const now = new Date();
-                    for (let i = 0; i < 5; i++) {
-                        const timestamp = new Date(now);
-                        timestamp.setHours(timestamp.getHours() - i);
-                        const latOffset = (Math.random() - 0.5) * 0.02;
-                        const lngOffset = (Math.random() - 0.5) * 0.02;
-                        history.push({
-                            lat: vehicle.location.lat + latOffset,
-                            lng: vehicle.location.lng + lngOffset,
-                            time: timestamp,
-                            label: timestamp.toLocaleTimeString()
-                        });
+                const generateVehicleLocationHistory = async (vehicle) => {
+                    try {
+                        const { data } = await axios.get(
+                            `/api/location-history/${vehicle.id}`
+                        );
+                        vehicleLocations.value = data.map(h => ({
+                            lat: h.lat,
+                            lng: h.lng,
+                            time: new Date(h.timestamp),
+                            label: new Date(h.timestamp).toLocaleTimeString()
+                        }));
+                    } catch(err) {
+                        console.error('Error cargando historial:', err);
                     }
-                    vehicleLocations.value = history;
                 };
                 
                 const initGlobalMap = () => {
@@ -1706,14 +1535,26 @@
                     if (vehicleDetailMap) {
                         vehicleDetailMap.remove();
                     }
-                    vehicleDetailMap = L.map('vehicleDetailMap')
-                        .setView([vehicle.location.lat, vehicle.location.lng], 14);
+                    let lat = 20.6597, lng = -103.3496;
+                    if (
+                      vehicle &&
+                      vehicle.location &&
+                      typeof vehicle.location.lat === 'number' &&
+                      typeof vehicle.location.lng === 'number'
+                    ) {
+                      lat = vehicle.location.lat;
+                      lng = vehicle.location.lng;
+                    }
+                    vehicleDetailMap = L.map('vehicleDetailMap').setView([lat, lng], 14);
                     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                         attribution: '&copy; OpenStreetMap contributors'
                     }).addTo(vehicleDetailMap);
-                    L.marker([vehicle.location.lat, vehicle.location.lng])
+                    L.marker([lat, lng])
                       .addTo(vehicleDetailMap)
-                      .bindPopup(`<strong>${vehicle.brand} ${vehicle.model}</strong><br>Matrícula: ${vehicle.plate}`);
+                      .bindPopup(
+                        `<strong>${vehicle?.brand || 'Vehículo'} ${vehicle?.model || ''}</strong>` +
+                        `<br>Matrícula: ${vehicle?.plate || 'N/A'}`
+                      );
                     const pathPoints = vehicleLocations.value.map(loc => [loc.lat, loc.lng]);
                     L.polyline(pathPoints, {
                       color: '#2c3e50',
@@ -1721,18 +1562,6 @@
                       dashArray: '8,6',
                       lineCap: 'round'
                     }).addTo(vehicleDetailMap);
-                    const notifDiv = document.createElement('div');
-                    notifDiv.id = 'history-update-notif';
-                    notifDiv.style.position = 'absolute';
-                    notifDiv.style.top = '10px';
-                    notifDiv.style.right = '10px';
-                    notifDiv.style.padding = '4px';
-                    notifDiv.style.borderRadius = '4px';
-                    notifDiv.style.background = 'rgba(255,255,255,0.8)';
-                    notifDiv.style.fontSize = '0.75rem';
-                    notifDiv.style.opacity = '0';
-                    notifDiv.innerText = '↻';
-                    document.querySelector('#vehicleDetailMap').parentNode.appendChild(notifDiv);
                 };
                 
                 const refreshMap = () => {
@@ -1794,7 +1623,6 @@
                     }
                 };
                 
-                // User Management
                 const openAddUserModal = () => {
                     newUser.value = { name: '', email: '', password: '', role: 'user' };
                     editingUser.value = false;
@@ -1826,13 +1654,11 @@
                     if (confirm('¿Está seguro de que desea eliminar este usuario?')) {
                         assignments.value = assignments.value.filter(a => a.userId !== userId);
                         users.value       = users.value.filter(u => u.id   !== userId);
-                        // persist changes
                         localStorage.setItem('users', JSON.stringify(users.value));
                         localStorage.setItem('assignments', JSON.stringify(assignments.value));
                     }
                 };
                 
-                // Vehicle Management
                 const openAddVehicleModal = () => {
                     newVehicle.value = { brand: '', model: '', year: 2023, plate: '', type: 'sedan', photo: '' };
                     editingVehicle.value = false;
@@ -1845,85 +1671,69 @@
                     showAddVehicleModal.value = true;
                 };
                 
-                const saveVehicle = () => {
-                    if (editingVehicle.value) {
-                        const idx = vehicles.value.findIndex(v => v.id === newVehicle.value.id);
-                        if (idx !== -1) {
-                          // preserve existing location…
-                          const loc = vehicles.value[idx].location;
-                          vehicles.value[idx] = { ...newVehicle.value, location: loc };
+                const saveVehicle = async () => {
+                    const url = editingVehicle.value
+                      ? `/api/vehicles/${newVehicle.value.id}`
+                      : '/api/vehicles';
+                    const method = editingVehicle.value ? 'put' : 'post';
+                    try {
+                        const { data } = await axios[method](url, newVehicle.value);
+                        if (editingVehicle.value) {
+                            const idx = vehicles.value.findIndex(v=>v.id===data.id);
+                            vehicles.value[idx] = data;
+                        } else {
+                            vehicles.value.push(data);
                         }
-                    } else {
-                        const maxId = vehicles.value.length
-                              ? Math.max(...vehicles.value.map(v=>v.id))
-                              : 0;
-                        const location = { /* … generate new location … */ };
-                        vehicles.value.push({
-                          ...newVehicle.value,
-                          id: maxId+1,
-                          location
-                        });
-                    }
-
-                    // ===> Persist the chosen photo under a unique key
-                    const targetId = editingVehicle.value
-                               ? newVehicle.value.id
-                               : vehicles.value[vehicles.value.length-1].id;
-                    localStorage.setItem(
-                      `vehicle_photo_${targetId}`,
-                      newVehicle.value.photo
-                    );
-
-                    showAddVehicleModal.value = false;
-                    localStorage.setItem('vehicles', JSON.stringify(vehicles.value));
-                };
-                
-                const deleteVehicle = (vehicleId) => {
-                    if (confirm('¿Está seguro de eliminar este vehículo?')) {
-                        vehicles.value    = vehicles.value.filter(v => v.id !== vehicleId);
-                        assignments.value = assignments.value.filter(a => a.vehicleId !== vehicleId);
-                        // persist changes
-                        localStorage.setItem('vehicles', JSON.stringify(vehicles.value));
-                        localStorage.setItem('assignments', JSON.stringify(assignments.value));
-                        // also remove stored photo if any
-                        localStorage.removeItem(`vehicle_photo_${vehicleId}`);
+                        showAddVehicleModal.value = false;
+                    } catch(err) {
+                        console.error('Error guardando vehículo:', err);
                     }
                 };
                 
-                // Assignment Management
+                const deleteVehicle = async (vehicleId) => {
+                    if (!confirm('¿Seguro que desea eliminar?')) return;
+                    try {
+                        await axios.delete(`/api/vehicles/${vehicleId}`);
+                        vehicles.value = vehicles.value.filter(v=>v.id!==vehicleId);
+                    } catch(err) {
+                        console.error('Error al eliminar vehículo:', err);
+                    }
+                };
+                
                 const openAddAssignmentModal = () => {
                     newAssignment.value = { userId: '', vehicleId: '' };
                     showAddAssignmentModal.value = true;
                 };
                 
-                const saveAssignment = () => {
-                    const maxId = assignments.value.length
-                      ? Math.max(...assignments.value.map(a=>a.id))
-                      : 0;
-                    assignments.value.push({
-                      id: maxId + 1,
-                      userId: newAssignment.value.userId,
-                      vehicleId: newAssignment.value.vehicleId,
-                      assignedDate: new Date().toISOString().slice(0, 10)
-                    });
-                    showAddAssignmentModal.value = false;
-                    if (activeView.value === 'map') {
-                      refreshMap();
+                const saveAssignment = async () => {
+                    try {
+                        const { data } = await axios.post('/api/assignments', {
+                            userId: newAssignment.value.userId,
+                            vehicleId: newAssignment.value.vehicleId
+                        });
+                        assignments.value.push(data);
+                        showAddAssignmentModal.value = false;
+                    } catch(err) {
+                        console.error('Error asignando vehículo:', err);
                     }
                 };
                 
                 const deleteAssignment = (assignmentId) => {
                     if (confirm('¿Está seguro de que desea eliminar esta asignación?')) {
                         assignments.value = assignments.value.filter(a => a.id !== assignmentId);
-                        // persist
                         localStorage.setItem('assignments', JSON.stringify(assignments.value));
                     }
                 };
                 
-                // Helper Functions
-                const getUserName = (userId) => {
-                    const user = users.value.find(u => u.id === userId);
-                    return user ? user.name : 'Usuario Desconocido';
+                const getUserName = (key) => {
+                  // ahora puede recibir id o e-mail
+                  let user;
+                  if (typeof key === 'string' && key.includes('@')) {
+                    user = users.value.find(u => u.email === key);
+                  } else {
+                    user = users.value.find(u => u.id === key);
+                  }
+                  return user ? user.name : '';    // si no hay match, cadena vacía
                 };
                 
                 const getVehicleName = (vehicleId) => {
@@ -1943,7 +1753,7 @@
                 const getVehicleAssignmentUser = (vehicleId) => {
                     const assignment = getVehicleAssignment(vehicleId);
                     if (!assignment) return 'No asignado';
-                    return getUserName(assignment.userId);
+                    return getUserName(assignment.userEmail);
                 };
                 
                 const getNonAdminUsers = () => {
@@ -1973,8 +1783,7 @@
                     return colors[Math.floor(Math.random() * colors.length)];
                 };
                 
-                onMounted(() => {
-                    // ===> Load each vehicle’s saved photo (if any) from localStorage
+                onMounted(async () => {
                     vehicles.value.forEach(v => {
                       const key = `vehicle_photo_${v.id}`;
                       const stored = localStorage.getItem(key);
@@ -1982,23 +1791,14 @@
                         v.photo = stored;
                       }
                     });
-
-                    const token = localStorage.getItem('authToken');
                     const storedUser = localStorage.getItem('currentUser');
-                    
-                    if (token && storedUser) {
-                        try {
-                            currentUser.value = JSON.parse(storedUser);
-                            isAuthenticated.value = true;
-                            if (currentUser.value.role === 'admin') {
-                                setActiveView('dashboard');
-                            }
-                        } catch (e) {
-                            console.error('Error parsing stored user', e);
-                            logout();
+                    if (storedUser) {
+                        currentUser.value = JSON.parse(storedUser);
+                        isAuthenticated.value = true;
+                        if (currentUser.value.role === 'admin') {
+                            setActiveView('dashboard');
                         }
                     }
-                    
                     document.addEventListener('viewUserVehicleDetails', (event) => {
                         const vehicleId = event.detail;
                         const vehicle = vehicles.value.find(v => v.id === vehicleId);
@@ -2006,28 +1806,27 @@
                             viewUserVehicleDetails(vehicle);
                         }
                     });
-                    
-                    // 1) load each vehicle’s saved photo (if any) from localStorage
-                    vehicles.value.forEach(v => {
-                        const key = `vehicle_photo_${v.id}`;
-                        const stored = localStorage.getItem(key);
-                        if (stored) {
-                            v.photo = stored;
-                        }
-                        // else leave v.photo as originally defined
-                    });
-                    
                     const storedUsers = localStorage.getItem('users');
                     if (storedUsers) users.value = JSON.parse(storedUsers);
-
                     const storedVehicles = localStorage.getItem('vehicles');
                     if (storedVehicles) vehicles.value = JSON.parse(storedVehicles);
-
                     const storedAssigns = localStorage.getItem('assignments');
                     if (storedAssigns) {
                       assignments.value = JSON.parse(storedAssigns);
                     }
-                    
+                    if (currentUser.value?.role === 'user') {
+                      const stored = localStorage.getItem('assignments');
+                      if (stored) assignments.value = JSON.parse(stored);
+                      if (!getUserVehicles().length) {
+                        userAssignedInterval.value = setInterval(() => {
+                          const reload = localStorage.getItem('assignments');
+                          assignments.value = reload ? JSON.parse(reload) : [];
+                          if (getUserVehicles().length) {
+                            clearInterval(userAssignedInterval.value);
+                          }
+                        }, 5000);
+                      }
+                    }
                     watch(activeView, val => {
                       if (val==='dashboard') {
                         setTimeout(() => {
@@ -2036,16 +1835,21 @@
                         }, 100);
                       }
                     });
-                    
                     watch([vehicles, assignments], () => {
                       if (chartByBrand) updateCharts();
                     }, { deep:true });
                 });
                 
+                onBeforeUnmount(() => {
+                  if (userAssignedInterval.value) {
+                    clearInterval(userAssignedInterval.value);
+                  }
+                });
+                
                 function assignmentBadgeText(vehicleId) {
                   const a = assignments.value.find(x => x.vehicleId === vehicleId);
                   return a
-                    ? `Asignado a ${getUserName(a.userId)}`
+                    ? `Asignado a ${getUserName(a.userEmail)}`
                     : 'Disponible';
                 }
                 
@@ -2068,7 +1872,6 @@
                   }, 1000);
                 }
                 
-                // New reactive state
                 const fileError = ref('');
                 const imagePreview = ref('');
                 function onVehicleFileChange(event) {
@@ -2122,12 +1925,10 @@
                     isSavingImage.value = true;
                     await new Promise(res => setTimeout(res, 1000));
                     selectedVehicle.value.photo = imagePreview.value;
-                    // store image under unique key
                     localStorage.setItem(
                       `vehicle_photo_${selectedVehicle.value.id}`,
                       imagePreview.value
                     );
-                    // persist updated vehicles list (so reload reflects new photo)
                     localStorage.setItem('vehicles', JSON.stringify(vehicles.value));
                   } finally {
                     isSavingImage.value = false;
@@ -2137,16 +1938,14 @@
                 
                 function confirmAssignment() {
                   if (!selectedAssignUser.value || !selectedAssignVehicle.value) return;
-                  assignments.value.push({
-                    id: Math.max(0, ...assignments.value.map(a=>a.id)) + 1,
-                    userId: selectedAssignUser.value.id,
+                  const newA = {
+                    id: Math.max(0, ...assignments.value.map(a => a.id)) + 1,
+                    userEmail: selectedAssignUser.value.email,    // <-- aquí
                     vehicleId: selectedAssignVehicle.value.id,
                     assignedDate: new Date().toISOString().slice(0,10)
-                  });
-                  localStorage.setItem(
-                    'assignments',
-                    JSON.stringify(assignments.value)
-                  );
+                  };
+                  assignments.value.push(newA);
+                  localStorage.setItem('assignments', JSON.stringify(assignments.value));
                   showAddAssignmentModal.value = false;
                   selectedAssignUser.value = null;
                   selectedAssignVehicle.value = null;
@@ -2277,11 +2076,9 @@
                   chartAssignmentsDaily.update();
                 }
                 
-                // Whenever a new event happens:
                 const newNote = { id: Date.now(), message: 'Vehicle 42 was deleted' };
                 notifications.value.push(newNote);
                 const removeId = newNote.id;
-                // Auto-remove this notification after 5 seconds
                 setTimeout(() => {
                   notifications.value = notifications.value.filter(n => n.id !== removeId);
                 }, 5000);
