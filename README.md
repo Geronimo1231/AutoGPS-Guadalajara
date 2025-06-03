@@ -1,5 +1,6 @@
 Descripción de la Aplicación - Catálogo de Vehículos y Seguimiento GPS
 
+
 Esta aplicación es un sistema completo que integra una API RESTful 
 y un frontend en Vue 3 para la gestión de un catálogo de vehículos. 
 
