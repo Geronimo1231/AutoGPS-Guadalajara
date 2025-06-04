@@ -6,31 +6,31 @@ export default {
         autoIncrement: true,
         primaryKey: true
       },
-      matricula: {
+      code: {
         type: Sequelize.STRING,
         allowNull: false,
         unique: true
       },
-      marca: {
+      brand: {
         type: Sequelize.STRING,
         allowNull: false
       },
-      modelo: {
+      model: {
         type: Sequelize.STRING,
         allowNull: false
       },
-      tipo: {
+      guy: {
         type: Sequelize.ENUM('pickup', 'sedán', 'SUV', 'hatchback', 'camioneta'),
         allowNull: false
       },
-      año: {
+      year: {
         type: Sequelize.INTEGER,
         allowNull: false
       },
-      imagen: {
+      image: {
         type: Sequelize.STRING
       },
-      estado: {
+      state: {
         type: Sequelize.ENUM('disponible', 'asignado'),
         defaultValue: 'disponible'
       },

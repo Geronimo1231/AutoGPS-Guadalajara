@@ -6,7 +6,7 @@ export default {
         autoIncrement: true,
         primaryKey: true
       },
-      usuarioId: {
+      userId: {
         type: Sequelize.INTEGER,
         allowNull: false,
         references: {
@@ -15,7 +15,7 @@ export default {
         },
         onDelete: 'CASCADE'
       },
-      vehiculoId: {
+      vehicleId: {
         type: Sequelize.INTEGER,
         allowNull: false,
         references: {
@@ -24,10 +24,10 @@ export default {
         },
         onDelete: 'CASCADE'
       },
-      latitud: {
+      latitude: {
         type: Sequelize.DOUBLE
       },
-      longitud: {
+      length: {
         type: Sequelize.DOUBLE
       },
       createdAt: {
@@ -47,3 +47,4 @@ export default {
     await queryInterface.dropTable('Asignacions');
   }
 };
+

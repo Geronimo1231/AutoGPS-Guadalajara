@@ -1,6 +1,6 @@
 import { DataTypes } from 'sequelize';
 import sequelize from '../config/database.js';
-import Usuario from './usuario.js';
+import Usuario from './user.js';
 import Vehiculo from './vehiculo.js';
 
 const Asignacion = sequelize.define('asignacion', {

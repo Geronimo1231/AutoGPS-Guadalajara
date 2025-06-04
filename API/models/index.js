@@ -15,8 +15,8 @@ const sequelize = new Sequelize(
 );
 
 // Modelos
-import Usuario from './usuario.js';
-import Vehiculo from './vehiculo.js';
+import Usuario from './user.js';
+import Vehiculo from './vehicle.js';
 import Asignacion from './asignacion.js';
 
 const db = {};

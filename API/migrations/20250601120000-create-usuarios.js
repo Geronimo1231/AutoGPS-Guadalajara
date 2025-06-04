@@ -6,31 +6,31 @@ export default {
         autoIncrement: true,
         primaryKey: true
       },
-      nombre: {
+      name: {
         type: Sequelize.STRING,
         allowNull: false
       },
-      apellido: {
+      lastname: {
         type: Sequelize.STRING,
         allowNull: false
       },
-      telefono: {
+      phone: {
         type: Sequelize.STRING
       },
-      correo: {
+      mail: {
         type: Sequelize.STRING,
         allowNull: false,
         unique: true
       },
-      contraseña: {
+      password: {
         type: Sequelize.STRING,
         allowNull: false
       },
-      rol: {
+      role: {
         type: Sequelize.ENUM('admin-global', 'admin', 'usuario'),
         defaultValue: 'usuario'
       },
-      foto: {
+      photo: {
         type: Sequelize.STRING
       },
       createdAt: {
