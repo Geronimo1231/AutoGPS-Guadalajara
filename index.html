@@ -344,11 +344,6 @@
           transform: translateY(12px);
         }
 
-        /* Dragging visual effect */
-        .draggable-card {
-          transition: transform 0.2s ease, box-shadow: 0.2s ease;
-          cursor: grab;
-        }
         .draggable--dragging {
           transform: scale(1.03);
           box-shadow: 0 8px 20px rgba(0,0,0,0.2);
@@ -459,10 +454,6 @@
           @apply text-gray-300 hover:text-white px-4 py-2 rounded-md;
         }
 
-        /* 1) Activity Log Panel: Ensure full height, scrollable, and dark theme */
-        .mt-8.flex.flex-col.h-[60vh].bg-gray-800.rounded-lg.overflow-hidden {
-          /* Already using Tailwind utility classes for height, background, and overflow */
-        }
         .flex-1.overflow-y-auto.p-4.space-y-4 {
           /* Ensures the log entries area is scrollable and fills available space */
         }

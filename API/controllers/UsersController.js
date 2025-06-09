@@ -1,4 +1,4 @@
-import Usuario from '../models/usuario.js';
+import Usuario from '../models/User.js';
 import bcrypt from 'bcryptjs';
 
 export const getUsuarios = async (req, res) => {
@@ -59,15 +59,16 @@ export const cambiarPassword = async (req, res) => {
     const { id } = req.params;
     const { nuevaPassword } = req.body;
 
+    const usuario = await Usuario.findByPk(id);
+    if (!usuario) return res.status(404).json({ message: 'Usuario no encontrado' });
+
     // Validar contraseña
     const regex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{8,}$/;
     if (!regex.test(nuevaPassword)) {
       return res.status(400).json({ message: 'La contraseña debe tener al menos 8 caracteres, incluyendo mayúsculas, minúsculas, números y caracteres especiales.' });
     }
 
-    const usuario = await Usuario.findByPk(id);
-    if (!usuario) return res.status(404).json({ message: 'Usuario no encontrado' });
-
+    
     const salt = await bcrypt.genSalt(10);
     usuario.password = await bcrypt.hash(nuevaPassword, salt);
 

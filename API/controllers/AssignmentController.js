@@ -1,6 +1,6 @@
-import Asignacion from '../models/asignacion.js';
-import Vehiculo from '../models/vehiculo.js';
-import Usuario from '../models/usuario.js';
+import Asignacion from '../models/Assignment.js';
+import Vehiculo from '../models/Vehicle.js';
+import Usuario from '../models/User.js';
 
 export const getAsignaciones = async (req, res) => {
   try {
@@ -20,7 +20,7 @@ export const crearAsignacion = async (req, res) => {
     // Validar que vehículo esté disponible
     const vehiculo = await Vehiculo.findByPk(vehiculoId);
     if (!vehiculo || vehiculo.estado === 'asignado') {
-      return res.status(400).json({ message: 'Vehículo no disponible para asignación' });
+      return res.status(400).json({ message: 'Vehículo no disponible para asignacion' });
     }
 
     const asignacion = await Asignacion.create({
@@ -41,7 +41,7 @@ export const eliminarAsignacion = async (req, res) => {
   try {
     const { id } = req.params;
     const asignacion = await Asignacion.findByPk(id);
-    if (!asignacion) return res.status(404).json({ message: 'Asignación no encontrada' });
+    if (!asignacion) return res.status(404).json({ message: 'Asignacion no encontrada' });
 
     // Liberar vehículo
     const vehiculo = await Vehiculo.findByPk(asignacion.vehiculoId);
@@ -51,7 +51,7 @@ export const eliminarAsignacion = async (req, res) => {
     }
 
     await asignacion.destroy();
-    res.json({ message: 'Asignación eliminada correctamente' });
+    res.json({ message: 'Asignacion eliminada correctamente' });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

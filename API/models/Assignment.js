@@ -1,7 +1,7 @@
 import { DataTypes } from 'sequelize';
-import sequelize from '../config/database.js';
-import Usuario from './user.js';
-import Vehiculo from './vehiculo.js';
+import sequelize from '../config/Database.js';
+import Usuario from './User.js';
+import Vehiculo from './Vehicle.js';
 
 const Asignacion = sequelize.define('asignacion', {
   id: {

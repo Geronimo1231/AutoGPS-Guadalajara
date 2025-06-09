@@ -3,7 +3,8 @@ import {
   getAsignaciones,
   crearAsignacion,
   eliminarAsignacion,
-} from '../controllers/asignacionController.js';
+} from '../controllers/AssignmentController.js';
+
 
 const router = express.Router();
 

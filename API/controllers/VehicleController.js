@@ -1,4 +1,4 @@
-import Vehiculo from '../models/vehiculo.js';
+import Vehiculo from '../models/Vehicle.js';
 
 export const getVehiculos = async (req, res) => {
   try {

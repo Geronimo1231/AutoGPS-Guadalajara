@@ -1,6 +1,6 @@
 import express from 'express';
-import { listarVehiculos, crearVehiculo, eliminarVehiculo } from '../controllers/vehiculoController.js';
-import { verificarJWT, esAdmin } from '../middlewares/authMiddleware.js';
+import { listarVehiculos, crearVehiculo, eliminarVehiculo } from '../controllers/VehicleController.js';
+import { verificarJWT, esAdmin } from '../middlewares/AuthMiddleware.js';
 
 const router = express.Router();
 
